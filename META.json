@@ -1,0 +1,52 @@
+{
+    "name": "pg_xenophile",
+    "tags": [
+        "plpgsql",
+        "function",
+        "functions",
+        "mocking",
+        "testing"
+    ],
+    "license": "gpl_3",
+    "prereqs": {
+        "test": {
+            "requires": {
+                "pgtap": 0
+            }
+        },
+        "runtime": {
+            "requires": {
+                "hstore": 0
+            }
+        }
+    },
+    "version": "0.3.0",
+    "abstract": "More than the bare necessities for i18n.",
+    "provides": {
+        "pg_xenophile": {
+            "file": "pg_xenophile--0.3.0.sql",
+            "docfile": "README.md",
+            "version": "0.3.0"
+        }
+    },
+    "meta-spec": {
+        "url": "https://pgxn.org/spec/",
+        "version": "1.0.0"
+    },
+    "resources": {
+        "homepage": "https://blog.bigsmoke.us/tag/pg_xenophile",
+        "bugtracker": {
+            "web": "https://github.com/bigsmoke/pg_xenophile/issues"
+        },
+        "repository": {
+            "url": "https://github.com/bigsmoke/pg_xenophile.git",
+            "web": "https://github.com/bigsmoke/pg_xenophile",
+            "type": "git"
+        }
+    },
+    "maintainer": [
+        "Rowan Rodrik van der Molen <rowan@bigsmoke.us>"
+    ],
+    "description": "The pg_xenophile extension provides more than the bare necessities for working with different countries, currencies, languages, and translations.",
+    "generated_by": "`select pg_xenophile_meta_pgxn()`"
+}

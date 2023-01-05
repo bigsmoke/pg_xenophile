@@ -1,0 +1,6 @@
+begin;
+create extension pg_xenophile
+    with cascade;
+NOTICE:  installing required extension "hstore"
+call xeno.test__l10n_table();
+rollback;
