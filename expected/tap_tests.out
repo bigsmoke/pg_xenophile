@@ -3,4 +3,12 @@ create extension pg_xenophile
     with cascade;
 NOTICE:  installing required extension "hstore"
 call xeno.test__l10n_table();
+NOTICE:  drop cascades to 3 other objects
+DETAIL:  drop cascades to view test_tbl_a_l10n_nl
+drop cascades to view test_tbl_a_l10n_en
+drop cascades to view test_tbl_a_l10n_fr
+NOTICE:  drop cascades to 3 other objects
+DETAIL:  drop cascades to view test_tbl_a_l10n_nl
+drop cascades to view test_tbl_a_l10n_en
+drop cascades to view test_tbl_a_l10n_fr
 rollback;

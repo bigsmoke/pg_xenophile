@@ -52,6 +52,7 @@ many-to-one translation-table pattern.
 | `pg_xenophile.base_lang_code`    | `app.settings.i18n.base_lang_code`     | `'en'::xeno.lang_code_alpha2`   |
 | `pg_xenophile.user_lang_code`    | `app.settings.i18n.user_lang_code`     | `'en'::xeno.lang_code_alpha2`   |
 | `pg_xenophile.target_lang_codes` | `app.settings.i18n.target_lang_codes`  | `'{}'::xeno.lang_code_alpha2[]` |
+| `pg_xenophile.in_event_trigger`  |                                        | `false`                         |
 
 The reason that each `pg_xenophile` setting has an equivalent setting with an
 `app.settings.i18n` prefix is because the powerful PostgREST can pass on such
@@ -489,12 +490,17 @@ create table l10n_table (
     ,base_table_name name
     ,base_table_regclass regclass
         primary key
+    ,base_column_definitions text[]
+        not null
     ,l10n_table_name name
     ,l10n_table_regclass regclass
         not null
         unique
     ,l10n_column_definitions text[]
         not null
+    ,l10n_table_constraint_definitions text[]
+        not null
+        default array[]::text[]
     ,base_lang_code lang_code_alpha2
         not null
         default pg_xenophile_base_lang_code()
@@ -559,9 +565,97 @@ select pg_catalog.pg_extension_config_dump(
 
 --------------------------------------------------------------------------------------------------------------
 
+create function l10n_table_with_fresh_ddl(inout l10n_table)
+    stable
+    set search_path from current
+    language plpgsql
+    as $$
+begin
+    $1.base_column_definitions := (
+        select
+            array_agg(
+                pg_attribute.attname
+                || ' ' || pg_catalog.format_type(pg_attribute.atttypid, pg_attribute.atttypmod)
+                || case when pg_attribute.attnotnull then ' NOT NULL' else '' end
+                || case when pg_attrdef.oid is not null
+                    then ' DEFAULT ' || pg_catalog.pg_get_expr(pg_attrdef.adbin, pg_attrdef.adrelid, true)
+                    else ''
+                end
+                order by
+                    pg_attribute.attnum
+            )
+        from
+            pg_catalog.pg_attribute
+        left outer join
+            pg_catalog.pg_attrdef
+            on pg_attribute.atthasdef
+            and pg_attrdef.adrelid = pg_attribute.attrelid
+            and pg_attrdef.adnum = pg_attribute.attnum
+        where
+            pg_attribute.attrelid = ($1).base_table_regclass
+            and pg_attribute.attnum >= 1
+            and not pg_attribute.attisdropped
+    );
+
+    $1.l10n_column_definitions := (
+        select
+            array_agg(
+                pg_attribute.attname
+                || ' ' || pg_catalog.format_type(pg_attribute.atttypid, pg_attribute.atttypmod)
+                || case when pg_attribute.attnotnull then ' NOT NULL' else '' end
+                || case when pg_attrdef.oid is not null
+                    then ' DEFAULT ' || pg_catalog.pg_get_expr(pg_attrdef.adbin, pg_attrdef.adrelid, true)
+                    else ''
+                end
+                order by
+                    pg_attribute.attnum
+            )
+        from
+            pg_catalog.pg_attribute
+        left outer join
+            pg_catalog.pg_attrdef
+            on pg_attribute.atthasdef
+            and pg_attrdef.adrelid = pg_attribute.attrelid
+            and pg_attrdef.adnum = pg_attribute.attnum
+        where
+            pg_attribute.attrelid = ($1).l10n_table_regclass
+            and pg_attribute.attnum >= 1
+            and not pg_attribute.attisdropped
+            and pg_attribute.attname != 'l10n_lang_code'
+            and not exists (
+                select
+                from
+                    pg_catalog.pg_constraint
+                where
+                    pg_constraint.conrelid = pg_attribute.attrelid
+                    and pg_constraint.contype = 'p'
+                    and pg_attribute.attnum = any (pg_constraint.conkey)
+            )
+    );
+
+    $1.l10n_table_constraint_definitions := (
+        select
+            array_agg(
+                pg_get_constraintdef(pg_constraint.oid, true)
+                order by
+                    pg_constraint.contype
+                    ,pg_constraint.conname
+            )
+        from
+            pg_catalog.pg_constraint
+        where
+            pg_constraint.conrelid = ($1).l10n_table_regclass
+    );
+end;
+$$;
+
+--------------------------------------------------------------------------------------------------------------
+
 create function l10n_table__track_ddl_events()
     returns event_trigger
+    security definer
     set search_path from current
+    set pg_xenophile.in_event_trigger to true
     language plpgsql
     as $$
 declare
@@ -584,6 +678,26 @@ begin
                 or l10n_table.l10n_table_regclass = ddl_cmd.objid
         )
     loop
+        update  l10n_table
+        set     base_column_definitions =  (
+                    select  base_column_definitions
+                    from    l10n_table_with_fresh_ddl(l10n_table.*) as fresh
+                )
+        where   base_table_regclass = _ddl_command.objid
+        ;
+
+        update  l10n_table
+        set     (l10n_table_constraint_definitions, l10n_column_definitions)
+                =  (
+                    select
+                        l10n_table_constraint_definitions
+                        ,l10n_column_definitions
+                    from
+                        l10n_table_with_fresh_ddl(l10n_table.*) as fresh
+                )
+        where
+            l10n_table_regclass = _ddl_command.objid
+        ;
     end loop;
 end;
 $$;
@@ -634,6 +748,21 @@ begin
         raise integrity_constraint_violation
             using message = 'It makes no sense to make an l10n table without any extra columns.'
                 ' Specify the columns you want in the `l10n_column_definitions` column.';
+    end if;
+
+    if not coalesce(nullif(current_setting('pg_xenophile.in_event_trigger', true), ''), 'false')::bool
+        and tg_op = 'UPDATE'
+        and (
+            NEW.base_column_definitions != OLD.base_column_definitions
+            or NEW.l10n_column_definitions != OLD.l10n_column_definitions
+            or NEW.l10n_table_constraint_definitions != OLD.l10n_table_constraint_definitions
+        )
+    then
+        raise integrity_constraint_violation
+            using message = 'After the initial `INSERT`, column and constraint definitions should not be'
+                ' altered manually, only via `ALTER TABLE` statements, that will propagate via the'
+                ' `l10n_table__track_ddl_events` event trigger.';
+            -- Feel free to implement support for this if this causes you discomfort.
     end if;
 
     if tg_op in ('INSERT', 'UPDATE') then
@@ -717,7 +846,9 @@ begin
                     NOT NULL
                     DEFAULT FALSE' else '' end || '
                 ,' || array_to_string(NEW.l10n_column_definitions, ', ') || '
-                ,UNIQUE (' || quote_ident(_pk_details.column_name) || ', l10n_lang_code)
+                ,PRIMARY KEY (' || quote_ident(_pk_details.column_name) || ', l10n_lang_code)
+                ' || array_to_string(NEW.l10n_table_constraint_definitions, ',
+                ') || '
             )';
 
         NEW.l10n_table_regclass := _l10n_table_path::regclass;
@@ -728,6 +859,8 @@ begin
                 'WHERE NOT l10n_columns_belong_to_pg_xenophile'
             );
         end if;
+
+        NEW := l10n_table_with_fresh_ddl(NEW.*);
     end if;
 
     _existing_l10n_views := (
@@ -753,23 +886,34 @@ begin
     end if;
     raise debug 'Required l10n views: %', _required_l10n_views;
 
-    _l10n_views_to_drop := (
-        select
-            coalesce(array_agg(lang_code), array[]::lang_code_alpha2[])
-        from
-            unnest(_existing_l10n_views) as lang_code
-        where
-            lang_code != all (_required_l10n_views)
-    );
+    if tg_op = 'UPDATE'
+        and (
+            NEW.base_column_definitions != OLD.base_column_definitions
+            or NEW.l10n_column_definitions != OLD.l10n_column_definitions
+            or NEW.l10n_table_constraint_definitions != OLD.l10n_table_constraint_definitions
+        )
+    then
+        _l10n_views_to_drop := _existing_l10n_views;
+        _l10n_views_to_create := _required_l10n_views;
+    else
+        _l10n_views_to_drop := (
+            select
+                coalesce(array_agg(lang_code), array[]::lang_code_alpha2[])
+            from
+                unnest(_existing_l10n_views) as lang_code
+            where
+                lang_code != all (_required_l10n_views)
+        );
 
-    _l10n_views_to_create := (
-        select
-            coalesce(array_agg(lang_code), array[]::lang_code_alpha2[])
-        from
-            unnest(_required_l10n_views) as lang_code
-        where
-            lang_code != all (_existing_l10n_views)
-    );
+        _l10n_views_to_create := (
+            select
+                coalesce(array_agg(lang_code), array[]::lang_code_alpha2[])
+            from
+                unnest(_required_l10n_views) as lang_code
+            where
+                lang_code != all (_existing_l10n_views)
+        );
+    end if;
 
     foreach _extraneous_view in array _l10n_views_to_drop
     loop
@@ -1106,6 +1250,7 @@ declare
     _nl_expected_1 record;
     _nl_expected_2 record;
     _en_expected_1 record;
+    _l10n_table l10n_table;
 begin
     create table test_tbl_a (
         id bigint
@@ -1174,9 +1319,72 @@ begin
     delete from test_tbl_a_l10n_fr where id = 1;
     assert found;
 
+    <<trigger_alter_table_event>>
+    begin
+        alter table test_tbl_a_l10n
+            add description2 text;
+
+        update test_tbl_a_l10n
+            set description2 = 'Something to satisfy NOT NULL';  -- Because we want to make it NOT NULL.
+
+        alter table test_tbl_a_l10n
+            alter column description2 set not null;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert _l10n_table.l10n_column_definitions[3] = 'description2 text NOT NULL',
+            'The `l10n_table__track_ddl_events` event trigger should have updated the list of l10n columns.';
+
+        assert exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_fr'::regclass
+                        and attname = 'description2'
+            ), 'The `description2` column should have been added to the view.';
+
+        alter table test_tbl_a_l10n
+            drop column description2
+            cascade;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert array_length(_l10n_table.l10n_column_definitions, 1) = 2,
+            'The dropped column should have been removed from the `l10n_table` meta table.';
+
+        assert not exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                        and attname = 'description2'
+            ), 'The `description2` column should have disappeared from the views.';
+
+        alter table test_tbl_a
+            add non_l10n_col int
+                not null
+                default 6;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert _l10n_table.base_column_definitions[3] = 'non_l10n_col integer NOT NULL DEFAULT 6',
+            'The `l10n_table__track_ddl_events` event trigger should have updated the list of base columns.';
+
+        assert (select non_l10n_col from test_tbl_a_l10n_nl where id = 2) = 6;
+
+        alter table test_tbl_a
+            drop column non_l10n_col
+            cascade;
+
+        assert not exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                        and attname = 'non_l10n_col'
+            ), 'The `non_l10n_col` column should have disappeared from the views.';
+    end trigger_alter_table_event;
+
     delete from l10n_table where base_table_regclass = 'test_tbl_a'::regclass;
 
-    raise transaction_rollback;  -- I could have use any error code, but this one seemed to fit best.
+    raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
 exception
     when transaction_rollback then
 end;
