@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.0
-pg_readme_generated_at: 2023-01-06 12:56:06.655711+00
+pg_extension_version: 0.5.1
+pg_readme_generated_at: 2023-01-06 13:10:32.714246+00
 pg_readme_version: 0.3.7
 ---
 
@@ -503,6 +503,16 @@ RETURN (COALESCE(current_setting('app_settings.i18n.base_lang_code'::text, true)
 ```
 
 #### Function: `pg_xenophile_meta_pgxn ()`
+
+Returns the JSON meta data that has to go into the `META.json` file needed for
+[PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
+
+The `Makefile` includes a recipe to allow the developer to: `make META.json` to
+refresh the meta file with the function's current output, including the
+`default_version`.
+
+And indeed, `pg_xenophile` can be found on PGXN:
+https://pgxn.org/dist/pg_xenophile/
 
 Function return type: `jsonb`
 
