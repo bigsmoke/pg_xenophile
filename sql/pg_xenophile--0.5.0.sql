@@ -52,7 +52,6 @@ many-to-one translation-table pattern.
 | `pg_xenophile.base_lang_code`    | `app.settings.i18n.base_lang_code`     | `'en'::xeno.lang_code_alpha2`   |
 | `pg_xenophile.user_lang_code`    | `app.settings.i18n.user_lang_code`     | `'en'::xeno.lang_code_alpha2`   |
 | `pg_xenophile.target_lang_codes` | `app.settings.i18n.target_lang_codes`  | `'{}'::xeno.lang_code_alpha2[]` |
-| `pg_xenophile.in_event_trigger`  |                                        | `false`                         |
 
 The reason that each `pg_xenophile` setting has an equivalent setting with an
 `app.settings.i18n` prefix is because the powerful PostgREST can pass on such
@@ -75,6 +74,13 @@ documentation](https://www.postgresql.org/docs/15/runtime-config-custom.html):
 In addition to the above, the `user_lang_code` setting, if set as neither
 `app.settings.i18n.user_lang_code` and `pg_xenophile.user_lang_code`, falls
 back to the first two letters of the `lc_messages` setting.
+
+### Internal settings
+
+| Setting name                                 | Default setting value           |
+| -------------------------------------------- | ------------------------------- |
+| `pg_xenophile.in_l10n_table_event_trigger`   | `false`                         |
+| `pg_xenophile.in_l10n_table_row_trigger`     | `false`                         |
 
 <?pg-readme-reference?>
 
@@ -217,11 +223,12 @@ create or replace function pg_xenophile_meta_pgxn()
         ,'`select pg_xenophile_meta_pgxn()`'
         ,'tags'
         ,array[
-            'plpgsql',
             'function',
             'functions',
-            'mocking',
-            'testing'
+            'i18n',
+            'l10n',
+            'plpgsql',
+            'table'
         ]
     );
 
@@ -297,7 +304,7 @@ create table currency (
 comment
     on table currency
     is $markdown$
-The `currency` table contains the currencies that are know to `pg_xenophile`.
+The `currency` table contains the currencies known to `pg_xenophile`.
 $markdown$;
 
 comment
@@ -486,13 +493,16 @@ create function pg_xenophile_user_lang_code()
 
 create table l10n_table (
     schema_name name
+        not null
         default current_schema
     ,base_table_name name
+        not null
     ,base_table_regclass regclass
         primary key
     ,base_column_definitions text[]
         not null
     ,l10n_table_name name
+        not null
     ,l10n_table_regclass regclass
         not null
         unique
@@ -651,15 +661,16 @@ $$;
 
 --------------------------------------------------------------------------------------------------------------
 
-create function l10n_table__track_ddl_events()
+create function l10n_table__track_alter_table_events()
     returns event_trigger
     security definer
     set search_path from current
-    set pg_xenophile.in_event_trigger to true
+    set pg_xenophile.in_l10n_table_event_trigger to true
     language plpgsql
     as $$
 declare
     _ddl_command record;
+    _dropped_obj record;
 begin
     for
         _ddl_command
@@ -698,20 +709,77 @@ begin
         where
             l10n_table_regclass = _ddl_command.objid
         ;
+
+        -- TODO: Handle `DROP TABLE` events in this same loop, as soon as pg_event_trigger_ddl_commands()
+        --       is fixed to no longer return `NULL` for `DROP TABLE` events.
     end loop;
 end;
 $$;
 
-create event trigger l10n_table__track_ddl_events
+create event trigger l10n_table__track_alter_table_events
     on ddl_command_end
-    when TAG in ('ALTER TABLE', 'DROP TABLE')
-    execute function l10n_table__track_ddl_events();
+    when TAG in ('ALTER TABLE')
+    execute function l10n_table__track_alter_table_events();
+
+--------------------------------------------------------------------------------------------------------------
+
+create function l10n_table__track_drop_table_events()
+    returns event_trigger
+    security definer
+    set search_path from current
+    set pg_xenophile.in_l10n_table_event_trigger to true
+    language plpgsql
+    as $$
+declare
+    _dropped_obj record;
+begin
+    if coalesce(
+            nullif(current_setting('pg_xenophile.in_l10n_table_row_trigger', true), ''),
+            'false'
+        )::bool
+    then
+        -- We are already responding to a `DELETE` to the row, so let's not doubly delete it.
+        return;
+    end if;
+
+    for
+        _dropped_obj
+    in select
+        dropped_obj.*
+    from
+        pg_event_trigger_dropped_objects() as dropped_obj
+    where
+        dropped_obj.classid = 'pg_class'::regclass
+        and exists (
+            select
+            from
+                l10n_table
+            where
+                l10n_table.base_table_regclass = dropped_obj.objid
+                or l10n_table.l10n_table_regclass = dropped_obj.objid
+        )
+    loop
+        delete from
+            l10n_table
+        where
+            l10n_table.base_table_regclass = _dropped_obj.objid
+            or l10n_table.l10n_table_regclass = _dropped_obj.objid
+        ;
+    end loop;
+end;
+$$;
+
+create event trigger l10n_table__track_drop_table_events
+    on sql_drop
+    when TAG in ('DROP TABLE')
+    execute function l10n_table__track_drop_table_events();
 
 --------------------------------------------------------------------------------------------------------------
 
 create function l10n_table__maintain_l10n_objects()
     returns trigger
     set search_path from current
+    set pg_xenophile.in_l10n_table_row_trigger to true
     reset client_min_messages
     language plpgsql
     as $$
@@ -726,6 +794,9 @@ declare
     _missing_view name;
     _extraneous_view name;
 begin
+    -- Generally, triggers that propagate changes to other database objects should be `AFTER` triggers,
+    -- no `BEFORE` triggers.  In this case, however, we want to, for example, be able to store the names
+    -- and identifiers of the newly created table in the very row that is being inserted.
     assert tg_when = 'BEFORE';
     assert tg_level = 'ROW';
     assert tg_op in ('INSERT', 'UPDATE', 'DELETE');
@@ -750,7 +821,10 @@ begin
                 ' Specify the columns you want in the `l10n_column_definitions` column.';
     end if;
 
-    if not coalesce(nullif(current_setting('pg_xenophile.in_event_trigger', true), ''), 'false')::bool
+    if not coalesce(
+            nullif(current_setting('pg_xenophile.in_l10n_table_event_trigger', true), ''),
+            'false'
+        )::bool
         and tg_op = 'UPDATE'
         and (
             NEW.base_column_definitions != OLD.base_column_definitions
@@ -761,7 +835,7 @@ begin
         raise integrity_constraint_violation
             using message = 'After the initial `INSERT`, column and constraint definitions should not be'
                 ' altered manually, only via `ALTER TABLE` statements, that will propagate via the'
-                ' `l10n_table__track_ddl_events` event trigger.';
+                ' `l10n_table__track_alter_table_events` event trigger.';
             -- Feel free to implement support for this if this causes you discomfort.
     end if;
 
@@ -853,6 +927,15 @@ begin
 
         NEW.l10n_table_regclass := _l10n_table_path::regclass;
 
+        execute 'COMMENT ON TABLE ' || NEW.l10n_table_regclass::text || $ddl$ IS $markdown$
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `$ddl$ || tg_name || $ddl$` trigger on the `$ddl$ || tg_table_name || $ddl$` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`$ddl$ || NEW.base_table_name || $ddl$`) referenced by the foreign key (that doubles as primary key) on `$ddl$ || NEW.l10n_table_name || $ddl$`.  When any `ALTER TABLE $ddl$ || quote_ident(NEW.l10n_table_name) || $ddl$` or `ALTER TABLE $ddl$ || quote_ident(NEW.base_table_name) || $ddl$` events are detected, `$ddl$ || tg_table_name || $ddl$`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `$ddl$ || tg_table_name || $ddl$` in turn trigger the `$ddl$ || tg_name || $ddl$` trigger, which ensures that the language-specific convenience views that (left) join `$ddl$ || NEW.base_table_name || $ddl$` to `$ddl$ || NEW.l10n_table_name || $ddl$` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
+$markdown$ $ddl$;
+
         if NEW.l10n_table_belongs_to_pg_xenophile then
             perform pg_catalog.pg_extension_config_dump(
                 _l10n_table_path,
@@ -937,8 +1020,15 @@ begin
     end loop;
 
     if tg_op = 'DELETE' then
-        execute 'DROP TABLE '
-            || quote_ident(OLD.schema_name) || '.' || quote_ident(OLD.l10n_table_name);
+        if not coalesce(
+                nullif(current_setting('pg_xenophile.in_l10n_table_event_trigger', true), ''),
+                'false'
+            )::bool
+        then
+            execute 'DROP TABLE '
+                || quote_ident(OLD.schema_name) || '.' || quote_ident(OLD.l10n_table_name);
+
+        end if;
 
         return OLD;
     end if;
@@ -1333,7 +1423,8 @@ begin
         select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
 
         assert _l10n_table.l10n_column_definitions[3] = 'description2 text NOT NULL',
-            'The `l10n_table__track_ddl_events` event trigger should have updated the list of l10n columns.';
+            'The `l10n_table__track_alter_table_events` event trigger should have updated the list of l10n'
+            ' columns.';
 
         assert exists(
                 select
@@ -1366,7 +1457,8 @@ begin
         select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
 
         assert _l10n_table.base_column_definitions[3] = 'non_l10n_col integer NOT NULL DEFAULT 6',
-            'The `l10n_table__track_ddl_events` event trigger should have updated the list of base columns.';
+            'The `l10n_table__track_alter_table_events` event trigger should have updated the list of base'
+            ' columns.';
 
         assert (select non_l10n_col from test_tbl_a_l10n_nl where id = 2) = 6;
 
@@ -1380,6 +1472,17 @@ begin
                 where   attrelid = 'test_tbl_a_l10n_nl'::regclass
                         and attname = 'non_l10n_col'
             ), 'The `non_l10n_col` column should have disappeared from the views.';
+
+        <<drop_base_table>>
+        begin
+            drop table test_tbl_a cascade;
+
+            assert not exists (select from l10n_table where base_table_name = 'test_tbl_a');
+
+            raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
+        exception
+            when transaction_rollback then
+        end drop_base_table;
     end trigger_alter_table_event;
 
     delete from l10n_table where base_table_regclass = 'test_tbl_a'::regclass;

@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.3.0
-pg_readme_generated_at: 2023-01-04 14:49:16.327568+00
-pg_readme_version: 0.3.6
+pg_extension_version: 0.5.0
+pg_readme_generated_at: 2023-01-06 12:56:06.655711+00
+pg_readme_version: 0.3.7
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -54,6 +54,13 @@ In addition to the above, the `user_lang_code` setting, if set as neither
 `app.settings.i18n.user_lang_code` and `pg_xenophile.user_lang_code`, falls
 back to the first two letters of the `lc_messages` setting.
 
+### Internal settings
+
+| Setting name                                 | Default setting value           |
+| -------------------------------------------- | ------------------------------- |
+| `pg_xenophile.in_l10n_table_event_trigger`   | `false`                         |
+| `pg_xenophile.in_l10n_table_row_trigger`     | `false`                         |
+
 ## Object reference
 
 ### Schema: `xeno`
@@ -74,41 +81,26 @@ something like `i18n`.
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
 
-#### Table: `country`
+#### Table: `eu_country`
 
-The `country` table has 6 attributes:
+The `eu_country` table has 3 attributes:
 
-1. `country.country_code` `country_code_alpha2`
+1. `eu_country.country_code` `country_code_alpha2`
 
    - `NOT NULL`
    - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
 
-2. `country.country_code_alpha3` `text`
+2. `eu_country.eu_membership_checked_on` `date`
 
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
 
    - `NOT NULL`
    - `DEFAULT false`
 
 #### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
 
 The `currency` table has 5 attributes:
 
@@ -149,6 +141,42 @@ The `currency` table has 5 attributes:
    - `NOT NULL`
    - `DEFAULT false`
 
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
 #### Table: `country_postal_code_pattern`
 
 The `country_postal_code_pattern` table has 8 attributes:
@@ -180,54 +208,84 @@ The `country_postal_code_pattern` table has 8 attributes:
    - `NOT NULL`
    - `DEFAULT false`
 
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
 #### Table: `l10n_table`
 
-The `l10n_table` table has 8 attributes:
+The `l10n_table` table is meant to keep track and manage all the
+`_l10n`-suffixed tables.  By inserting a row in this table, with just the
+details of the base table, a many-to-one l10n table called
+`<base_table_name>_l10n` will be created by the `maintain_l10n_objects`
+trigger.  This trigger will also take care of creating the
+`<base_table_name>_l10n_<base_lang_code>` view as well as one such view for
+all the `target_lang_codes`.  These views combine the columns of the base
+table with the columns of the l10n table, filtered by the language code
+specific to that particular view.
 
-1. `l10n_table.table_schema` `name`
+One of the reasons to manage this through a table rather than through a stored
+procedure is that a list of such enhance l10n tables needs to be kept by
+`pg_xenophile` anyway: in the likely case that updates necessitate the
+upgrading of (the views and/or triggers around) these tables, the extension
+update script will know where to find everything.
+
+It may not immediately be obvious why, besides the `base_table_regclass` and
+the `l10n_table_regclass` columns, `schema_name`, `base_table_name` and
+`l10n_table_name` also exist.  After all, PostgreSQL has some very comfortable
+magic surrounding `regclass` and related [object identifier
+types](https://www.postgresql.org/docs/current/datatype-oid.html).  The reason
+is that, even though `pg_dump` has the ability to dump OIDs, tables belonging
+to extensions are not dumped at all, except for any part exempted from this
+using the `pg_catalog.pg_extension_config_dump()` function.  For `l10n_table`,
+only the columns for which `l10n_table_belongs_to_pg_xenophile = false` are
+included in the dump.
+
+The `l10n_table` table has 11 attributes:
+
+1. `l10n_table.schema_name` `name`
+
+   - `NOT NULL`
+   - `DEFAULT CURRENT_SCHEMA`
 
 2. `l10n_table.base_table_name` `name`
+
+   - `NOT NULL`
 
 3. `l10n_table.base_table_regclass` `regclass`
 
    - `NOT NULL`
    - `PRIMARY KEY (base_table_regclass)`
 
-4. `l10n_table.l10n_table_name` `name`
+4. `l10n_table.base_column_definitions` `text[]`
 
-5. `l10n_table.l10n_table_regclass` `regclass`
+   - `NOT NULL`
+
+5. `l10n_table.l10n_table_name` `name`
+
+   - `NOT NULL`
+
+6. `l10n_table.l10n_table_regclass` `regclass`
 
    - `NOT NULL`
    - `UNIQUE (l10n_table_regclass)`
 
-6. `l10n_table.base_lang_code` `lang_code_alpha2`
+7. `l10n_table.l10n_column_definitions` `text[]`
+
+   - `NOT NULL`
+
+8. `l10n_table.l10n_table_constraint_definitions` `text[]`
+
+   - `NOT NULL`
+   - `DEFAULT ARRAY[]::text[]`
+
+9. `l10n_table.base_lang_code` `lang_code_alpha2`
 
    - `NOT NULL`
    - `DEFAULT pg_xenophile_base_lang_code()`
 
-7. `l10n_table.target_lang_codes` `lang_code_alpha2[]`
+10. `l10n_table.target_lang_codes` `lang_code_alpha2[]`
 
    - `NOT NULL`
    - `DEFAULT pg_xenophile_target_lang_codes()`
 
-8. `l10n_table.l10n_table_belongs_to_pg_xenophile` `boolean`
+11. `l10n_table.l10n_table_belongs_to_pg_xenophile` `boolean`
 
    If this is `true`, then the created localization (l10n) _table_ will be managed
    (and thus recreated after a restore) by the `pg_xenophile` extension.  That is
@@ -261,10 +319,17 @@ The `lang` table has 2 attributes:
 
 #### Table: `lang_l10n`
 
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`lang`) referenced by the foreign key (that doubles as primary key) on `lang_l10n`.  When any `ALTER TABLE lang_l10n` or `ALTER TABLE lang` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `lang` to `lang_l10n` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
 The `lang_l10n` table has 4 attributes:
 
 1. `lang_l10n.lang_code` `lang_code_alpha2`
 
+   - `NOT NULL`
    - `FOREIGN KEY (lang_code) REFERENCES lang(lang_code) ON UPDATE CASCADE ON DELETE CASCADE`
 
 2. `lang_l10n.l10n_lang_code` `lang_code_alpha2`
@@ -283,10 +348,17 @@ The `lang_l10n` table has 4 attributes:
 
 #### Table: `country_l10n`
 
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country`) referenced by the foreign key (that doubles as primary key) on `country_l10n`.  When any `ALTER TABLE country_l10n` or `ALTER TABLE country` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country` to `country_l10n` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
 The `country_l10n` table has 4 attributes:
 
 1. `country_l10n.country_code` `country_code_alpha2`
 
+   - `NOT NULL`
    - `FOREIGN KEY (country_code) REFERENCES country(country_code) ON UPDATE CASCADE ON DELETE CASCADE`
 
 2. `country_l10n.l10n_lang_code` `lang_code_alpha2`
@@ -327,25 +399,6 @@ The `country_l10n` table has 4 attributes:
 ```
 
 ### Routines
-
-#### Procedure: `create_l10n_table (name, name, text[], lang_code_alpha2, lang_code_alpha2[], boolean)`
-
-The `create_l10n_table()` SP creates a many-to-one l10n table with localizable
-columns.  Downstream, using the `create_l10n_view()` SP, a permanent
-`<base_table$>_l10n_en` view will be made that joins `base_table$` with the
-`l10n_lang_cade = base_lang_code$` rows from the freshly-created
-`<base_table$>_l10n` table.
-
-Procedure arguments:
-
-| Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
-| ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
-|   `$1` |       `IN` | `table_schema$`                                                   | `name`                                                               |  |
-|   `$2` |       `IN` | `base_table$`                                                     | `name`                                                               |  |
-|   `$3` |       `IN` | `l10n_columns$`                                                   | `text[]`                                                             |  |
-|   `$4` |       `IN` | `base_lang_code$`                                                 | `lang_code_alpha2`                                                   | `pg_xenophile_base_lang_code()` |
-|   `$5` |       `IN` | `target_lang_codes$`                                              | `lang_code_alpha2[]`                                                 | `pg_xenophile_target_lang_codes()` |
-|   `$6` |       `IN` | `will_belong_to_pg_xenophile$`                                    | `boolean`                                                            | `false` |
 
 #### Procedure: `create_l10n_view (name, name, name, lang_code_alpha2, boolean)`
 
@@ -388,10 +441,41 @@ Function return type: `trigger`
 Function-local settings:
 
   *  `SET search_path TO xeno, public, pg_temp`
+  *  `SET pg_xenophile.in_l10n_table_row_trigger TO true`
 
-#### Function: `l10n_table__track_ddl_events ()`
+#### Function: `l10n_table__track_alter_table_events ()`
 
 Function return type: `event_trigger`
+
+Function attributes: `SECURITY DEFINER`
+
+Function-local settings:
+
+  *  `SET search_path TO xeno, public, pg_temp`
+  *  `SET pg_xenophile.in_l10n_table_event_trigger TO true`
+
+#### Function: `l10n_table__track_drop_table_events ()`
+
+Function return type: `event_trigger`
+
+Function attributes: `SECURITY DEFINER`
+
+Function-local settings:
+
+  *  `SET search_path TO xeno, public, pg_temp`
+  *  `SET pg_xenophile.in_l10n_table_event_trigger TO true`
+
+#### Function: `l10n_table_with_fresh_ddl (l10n_table)`
+
+Function arguments:
+
+| Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
+| ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+|   `$1` |    `INOUT` |                                                                   | `l10n_table`                                                         |  |
+
+Function return type: `l10n_table`
+
+Function attributes: `STABLE`
 
 Function-local settings:
 
@@ -417,6 +501,12 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_base_lang_code()
  SET search_path TO 'xeno', 'public', 'pg_temp'
 RETURN (COALESCE(current_setting('app_settings.i18n.base_lang_code'::text, true), current_setting('pg_xenophile.base_lang_code'::text, true), 'en'::text))::lang_code_alpha2
 ```
+
+#### Function: `pg_xenophile_meta_pgxn ()`
+
+Function return type: `jsonb`
+
+Function attributes: `STABLE`
 
 #### Function: `pg_xenophile_readme ()`
 
@@ -492,6 +582,7 @@ declare
     _nl_expected_1 record;
     _nl_expected_2 record;
     _en_expected_1 record;
+    _l10n_table l10n_table;
 begin
     create table test_tbl_a (
         id bigint
@@ -500,9 +591,9 @@ begin
         ,universal_blergh text
     );
 
-    call create_l10n_table(
-        current_schema
-        ,'test_tbl_a'::name
+    insert into l10n_table (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
+    values (
+        'test_tbl_a'
         ,array['name TEXT NOT NULL', 'description TEXT NOT NULL']
         ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
         ,array['en', 'fr']::lang_code_alpha2[]
@@ -560,7 +651,85 @@ begin
     delete from test_tbl_a_l10n_fr where id = 1;
     assert found;
 
-    raise transaction_rollback;  -- I could have use any error code, but this one seemed to fit best.
+    <<trigger_alter_table_event>>
+    begin
+        alter table test_tbl_a_l10n
+            add description2 text;
+
+        update test_tbl_a_l10n
+            set description2 = 'Something to satisfy NOT NULL';  -- Because we want to make it NOT NULL.
+
+        alter table test_tbl_a_l10n
+            alter column description2 set not null;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert _l10n_table.l10n_column_definitions[3] = 'description2 text NOT NULL',
+            'The `l10n_table__track_alter_table_events` event trigger should have updated the list of l10n'
+            ' columns.';
+
+        assert exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_fr'::regclass
+                        and attname = 'description2'
+            ), 'The `description2` column should have been added to the view.';
+
+        alter table test_tbl_a_l10n
+            drop column description2
+            cascade;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert array_length(_l10n_table.l10n_column_definitions, 1) = 2,
+            'The dropped column should have been removed from the `l10n_table` meta table.';
+
+        assert not exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                        and attname = 'description2'
+            ), 'The `description2` column should have disappeared from the views.';
+
+        alter table test_tbl_a
+            add non_l10n_col int
+                not null
+                default 6;
+
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+
+        assert _l10n_table.base_column_definitions[3] = 'non_l10n_col integer NOT NULL DEFAULT 6',
+            'The `l10n_table__track_alter_table_events` event trigger should have updated the list of base'
+            ' columns.';
+
+        assert (select non_l10n_col from test_tbl_a_l10n_nl where id = 2) = 6;
+
+        alter table test_tbl_a
+            drop column non_l10n_col
+            cascade;
+
+        assert not exists(
+                select
+                from    pg_attribute
+                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                        and attname = 'non_l10n_col'
+            ), 'The `non_l10n_col` column should have disappeared from the views.';
+
+        <<drop_base_table>>
+        begin
+            drop table test_tbl_a cascade;
+
+            assert not exists (select from l10n_table where base_table_name = 'test_tbl_a');
+
+            raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
+        exception
+            when transaction_rollback then
+        end drop_base_table;
+    end trigger_alter_table_event;
+
+    delete from l10n_table where base_table_regclass = 'test_tbl_a'::regclass;
+
+    raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
 exception
     when transaction_rollback then
 end;

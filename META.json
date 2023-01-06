@@ -1,11 +1,12 @@
 {
     "name": "pg_xenophile",
     "tags": [
-        "plpgsql",
         "function",
         "functions",
-        "mocking",
-        "testing"
+        "i18n",
+        "l10n",
+        "plpgsql",
+        "table"
     ],
     "license": "gpl_3",
     "prereqs": {
@@ -20,13 +21,13 @@
             }
         }
     },
-    "version": "0.3.0",
+    "version": "0.5.0",
     "abstract": "More than the bare necessities for i18n.",
     "provides": {
         "pg_xenophile": {
             "file": "pg_xenophile--0.3.0.sql",
             "docfile": "README.md",
-            "version": "0.3.0"
+            "version": "0.5.0"
         }
     },
     "meta-spec": {
