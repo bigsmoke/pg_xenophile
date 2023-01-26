@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
 pg_extension_version: 0.5.2
-pg_readme_generated_at: 2023-01-26 15:25:38.810985+00
+pg_readme_generated_at: 2023-01-26 15:43:33.767342+00
 pg_readme_version: 0.5.6
 ---
 
@@ -23,6 +23,21 @@ becomes especially worthwhile if you want some comfort on top of the common
 many-to-one translation-table pattern.
 
 > All your ethnocentrism are belong to us.
+
+## Using `pg_xenophile`
+
+To use the list of countries (from the [`country` table](#table-country)) or
+languages (from the [`lang` table](#table-lang), just use them.  And don't be
+afraid of using the natural keys in your foreign keys!  If you've been told to
+fear them, you will soon be attached to the convenience of not needing to join
+to know what a foreign key value means.
+
+If you want a translatable table, you have to register the base table with the
+[`l10n_table` meta table](#table-l10n_table).  See the [`l10n_table`
+documentation](#table-l10n_table) in the reference for details.  From the
+`l10n_table` documentation, you should also be able to learn how to work with
+the `lang_l10n`, `lang_l10n_en`, `country_l10n` and `country_l10n_en` tables
+and views that are manintained via the triggers on this meta table.
 
 ## Extension-specific settings
 
