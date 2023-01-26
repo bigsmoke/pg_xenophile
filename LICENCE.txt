@@ -1,4 +1,4 @@
-pg_advisory_lock_key_registry
+pg_xenophile
 
 Copyright © 2022–2023, Rowan Rodrik van der Molen
 

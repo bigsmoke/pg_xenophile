@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.2
-pg_readme_generated_at: 2023-01-26 15:43:33.767342+00
+pg_extension_version: 0.5.3
+pg_readme_generated_at: 2023-01-26 16:38:51.335052+00
 pg_readme_version: 0.5.6
 ---
 
