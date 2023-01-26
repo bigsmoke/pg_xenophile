@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.1
-pg_readme_generated_at: 2023-01-06 13:10:32.714246+00
-pg_readme_version: 0.3.7
+pg_extension_version: 0.5.2
+pg_readme_generated_at: 2023-01-26 15:25:38.810985+00
+pg_readme_version: 0.5.6
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -80,23 +80,6 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
 
 #### Table: `currency`
 
@@ -204,6 +187,23 @@ The `country_postal_code_pattern` table has 8 attributes:
 7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
 
 8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
 
    - `NOT NULL`
    - `DEFAULT false`
@@ -379,7 +379,7 @@ The `country_l10n` table has 4 attributes:
 
 #### View: `lang_l10n_en`
 
-```
+```sql
  SELECT lang.lang_code, lang.lang_belongs_to_pg_xenophile,
     lang_l10n.l10n_lang_code, lang_l10n.l10n_columns_belong_to_pg_xenophile,
     lang_l10n.name
@@ -389,7 +389,7 @@ The `country_l10n` table has 4 attributes:
 
 #### View: `country_l10n_en`
 
-```
+```sql
  SELECT country.country_code, country.country_code_alpha3,
     country.country_code_num, country.calling_code, country.currency_code,
     country.country_belongs_to_pg_xenophile, country_l10n.l10n_lang_code,
@@ -430,7 +430,7 @@ Function return type: `anyelement`
 
 Function attributes: `STABLE`, `RETURNS NULL ON NULL INPUT`, `PARALLEL SAFE`
 
-#### Function: `l10n_table__maintain_l10n_objects ()`
+#### Function: `l10n_table__maintain_l10n_objects()`
 
 The `l10n_table__maintain_l10n_objects()` trigger function is meant to actuate
 changes to the `l10_table` to the actual l10n tables and views tracked by that
@@ -443,7 +443,7 @@ Function-local settings:
   *  `SET search_path TO xeno, public, pg_temp`
   *  `SET pg_xenophile.in_l10n_table_row_trigger TO true`
 
-#### Function: `l10n_table__track_alter_table_events ()`
+#### Function: `l10n_table__track_alter_table_events()`
 
 Function return type: `event_trigger`
 
@@ -454,7 +454,7 @@ Function-local settings:
   *  `SET search_path TO xeno, public, pg_temp`
   *  `SET pg_xenophile.in_l10n_table_event_trigger TO true`
 
-#### Function: `l10n_table__track_drop_table_events ()`
+#### Function: `l10n_table__track_drop_table_events()`
 
 Function return type: `event_trigger`
 
@@ -481,7 +481,7 @@ Function-local settings:
 
   *  `SET search_path TO xeno, public, pg_temp`
 
-#### Function: `pg_xenophile_base_lang_code ()`
+#### Function: `pg_xenophile_base_lang_code()`
 
 Function return type: `lang_code_alpha2`
 
@@ -492,7 +492,7 @@ Function-local settings:
   *  `SET pg_readme.include_this_routine_definition TO true`
   *  `SET search_path TO xeno, public, pg_temp`
 
-```
+```sql
 CREATE OR REPLACE FUNCTION xeno.pg_xenophile_base_lang_code()
  RETURNS lang_code_alpha2
  LANGUAGE sql
@@ -502,7 +502,7 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_base_lang_code()
 RETURN (COALESCE(current_setting('app_settings.i18n.base_lang_code'::text, true), current_setting('pg_xenophile.base_lang_code'::text, true), 'en'::text))::lang_code_alpha2
 ```
 
-#### Function: `pg_xenophile_meta_pgxn ()`
+#### Function: `pg_xenophile_meta_pgxn()`
 
 Returns the JSON meta data that has to go into the `META.json` file needed for
 [PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
@@ -518,7 +518,7 @@ Function return type: `jsonb`
 
 Function attributes: `STABLE`
 
-#### Function: `pg_xenophile_readme ()`
+#### Function: `pg_xenophile_readme()`
 
 Generates a README in Markdown format using the amazing power of the
 `pg_readme` extension.  Temporarily installs `pg_readme` if it is not already
@@ -532,7 +532,7 @@ Function-local settings:
   *  `SET pg_readme.include_view_definitions TO true`
   *  `SET pg_readme.include_routine_definitions_like TO {test__%}`
 
-#### Function: `pg_xenophile_target_lang_codes ()`
+#### Function: `pg_xenophile_target_lang_codes()`
 
 Function return type: `lang_code_alpha2[]`
 
@@ -543,7 +543,7 @@ Function-local settings:
   *  `SET pg_readme.include_this_routine_definition TO true`
   *  `SET search_path TO xeno, public, pg_temp`
 
-```
+```sql
 CREATE OR REPLACE FUNCTION xeno.pg_xenophile_target_lang_codes()
  RETURNS lang_code_alpha2[]
  LANGUAGE sql
@@ -553,7 +553,7 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_target_lang_codes()
 RETURN (COALESCE(current_setting('app.settings.i18n.target_lang_codes'::text, true), current_setting('pg_xenophile.target_lang_codes'::text, true), '{}'::text))::lang_code_alpha2[]
 ```
 
-#### Function: `pg_xenophile_user_lang_code ()`
+#### Function: `pg_xenophile_user_lang_code()`
 
 Function return type: `lang_code_alpha2`
 
@@ -564,7 +564,7 @@ Function-local settings:
   *  `SET pg_readme.include_this_routine_definition TO true`
   *  `SET search_path TO xeno, public, pg_temp`
 
-```
+```sql
 CREATE OR REPLACE FUNCTION xeno.pg_xenophile_user_lang_code()
  RETURNS lang_code_alpha2
  LANGUAGE sql
@@ -574,14 +574,14 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_user_lang_code()
 RETURN (COALESCE(current_setting('app_settings.i18n.user_lang_code'::text, true), current_setting('pg_xenophile.user_lang_code'::text, true), regexp_replace(current_setting('lc_messages'::text), '^([a-z]{2}).*$'::text, ''::text), 'en'::text))::lang_code_alpha2
 ```
 
-#### Procedure: `test__l10n_table ()`
+#### Procedure: `test__l10n_table()`
 
 Procedure-local settings:
 
   *  `SET search_path TO xeno, public, pg_temp`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
-```
+```sql
 CREATE OR REPLACE PROCEDURE xeno.test__l10n_table()
  LANGUAGE plpgsql
  SET search_path TO 'xeno', 'public', 'pg_temp'
@@ -746,7 +746,7 @@ end;
 $procedure$
 ```
 
-#### Function: `updatable_l10_view ()`
+#### Function: `updatable_l10_view()`
 
 Function return type: `trigger`
 
@@ -758,18 +758,34 @@ Function-local settings:
 
 The following extra types have been defined _besides_ the implicit composite types of the [tables](#tables) and [views](#views) in this extension.
 
-#### Type: `currency_code`
+#### Domain: `currency_code`
 
-TODO: automatic type synopsis in `pg_readme_object_reference()`.
+Using this domain instead of its underlying `text` type ensures that only
+uppercase, 3-letter currency codes are allowed.  It does _not_ enforce that the
+`currency_code` exists in the `currency` table.
 
-#### Type: `country_code_alpha2`
+```sql
+CREATE DOMAIN currency_code AS text
+  CHECK ((VALUE ~ '^[A-Z]{3}$'::text));
+```
 
-TODO: automatic type synopsis in `pg_readme_object_reference()`.
+#### Domain: `country_code_alpha2`
 
-#### Type: `lang_code_alpha2`
+Using this domain instead of its underlying `text` type ensures that only
+2-letter, uppercase country codes are allowed.
 
-TODO: automatic type synopsis in `pg_readme_object_reference()`.
+```sql
+CREATE DOMAIN country_code_alpha2 AS text
+  CHECK ((VALUE ~ '^[A-Z]{2}$'::text));
+```
+
+#### Domain: `lang_code_alpha2`
+
+```sql
+CREATE DOMAIN lang_code_alpha2 AS text
+  CHECK ((VALUE ~ '^[a-z]{2}$'::text));
+```
 
 ## Colophon
 
-This `README.md` for the `pg_xenophile` `extension` was automatically generated using the [`pg_readme`](https://github.com/bigsmoke/pg_readme) PostgreSQL extension.
+This `README.md` for the `pg_xenophile` extension was automatically generated using the [`pg_readme`](https://github.com/bigsmoke/pg_readme) PostgreSQL extension.
