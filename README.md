@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.3
-pg_readme_generated_at: 2023-01-26 16:38:51.335052+00
+pg_extension_version: 0.5.4
+pg_readme_generated_at: 2023-02-07 00:01:26.837045+00
 pg_readme_version: 0.5.6
 ---
 
@@ -613,13 +613,13 @@ begin
         id bigint
             primary key
             generated always as identity
-        ,universal_blergh text
+        ,"universal blergh" text
     );
 
     insert into l10n_table (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
     values (
         'test_tbl_a'
-        ,array['name TEXT NOT NULL', 'description TEXT NOT NULL']
+        ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
         ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
         ,array['en', 'fr']::lang_code_alpha2[]
     );
@@ -635,8 +635,8 @@ begin
         1, 'AX-UNI', 'nl', 'Bijl Universiteit', 'De trainingsleider in bijlonderhoud en gebruik'
     )::test_tbl_a_l10n_nl;
 
-    insert into test_tbl_a_l10n_nl (universal_blergh, "name", "description")
-        values (_nl_expected_1.universal_blergh, _nl_expected_1."name", _nl_expected_1."description")
+    insert into test_tbl_a_l10n_nl ("universal blergh", name, "description (short)")
+        values (_nl_expected_1."universal blergh", _nl_expected_1.name, _nl_expected_1."description (short)")
         returning *
         into _row;
 
@@ -650,7 +650,7 @@ begin
 
     update test_tbl_a_l10n_en
         set "name" = _en_expected_1."name"
-            ,"description" = _en_expected_1."description"
+            ,"description (short)" = _en_expected_1."description (short)"
         where
             id = _nl_expected_1.id
         returning
@@ -667,8 +667,8 @@ begin
         2, 'PO-UNI', 'nl', 'Poep-Universiteit', 'De Beste Plek om Te Leren Legen'
     )::test_tbl_a_l10n_nl;
 
-    insert into test_tbl_a_l10n_nl (universal_blergh, "name", "description")
-        values (_nl_expected_2.universal_blergh, _nl_expected_2."name", _nl_expected_2."description")
+    insert into test_tbl_a_l10n_nl ("universal blergh", name, "description (short)")
+        values (_nl_expected_2."universal blergh", _nl_expected_2.name, _nl_expected_2."description (short)")
         returning *
         into _row;
     assert _row = _nl_expected_2;
