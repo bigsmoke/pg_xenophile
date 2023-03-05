@@ -1,5 +1,5 @@
 schema = 'xeno'
 relocatable = false
 superuser = false
-default_version = '0.5.4'
+default_version = '0.5.5'
 requires = 'hstore'

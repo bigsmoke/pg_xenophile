@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.4
-pg_readme_generated_at: 2023-02-07 00:01:26.837045+00
-pg_readme_version: 0.5.6
+pg_extension_version: 0.5.5
+pg_readme_generated_at: 2023-03-05 15:57:40.670093+00
+pg_readme_version: 0.6.0
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -621,7 +621,8 @@ begin
         'test_tbl_a'
         ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
         ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
-        ,array['en', 'fr']::lang_code_alpha2[]
+        ,array['en', 'fr', 'nl']::lang_code_alpha2[]
+        -- 'nl' is redundantly added to the array of target languages to test deduplication.
     );
 
     assert array['test_tbl_a_l10n_en', 'test_tbl_a_l10n_fr', 'test_tbl_a_l10n_nl']::name[] = (
