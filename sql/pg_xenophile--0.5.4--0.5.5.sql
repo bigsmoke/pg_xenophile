@@ -3,7 +3,7 @@
 
 --------------------------------------------------------------------------------------------------------------
 
--- Add redundant target language to test depulication.
+-- Add redundant target language to test deduplication.
 create or replace procedure test__l10n_table()
     set search_path from current
     set pg_readme.include_this_routine_definition to true
