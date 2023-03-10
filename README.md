@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.6
-pg_readme_generated_at: 2023-03-08 12:59:42.535081+00
+pg_extension_version: 0.5.7
+pg_readme_generated_at: 2023-03-10 14:22:36.031296+00
 pg_readme_version: 0.6.0
 ---
 
@@ -604,90 +604,217 @@ CREATE OR REPLACE PROCEDURE xeno.test__l10n_table()
 AS $procedure$
 declare
     _row record;
-    _nl_expected_1 record;
-    _nl_expected_2 record;
-    _en_expected_1 record;
     _l10n_table l10n_table;
 begin
-    create table test_tbl_a (
+    -- Create the table that will be translated.
+    create table test_tbl (
         id bigint
             primary key
             generated always as identity
         ,"universal blergh" text
     );
 
-    insert into l10n_table (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
+    <<with_redundant_target_lang>>
+    begin
+        -- This tests that the trigger(s) on `l10n_table` tries to create the `_l10n_nl`-suffixed view
+        -- only once and doesn't crash because of trying to create it twice.
+        insert into l10n_table
+            (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
+        values (
+            'test_tbl'
+            ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
+            ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
+            ,array['nl']::lang_code_alpha2[]
+        );
+        raise transaction_rollback;
+    exception
+        when transaction_rollback then
+    end with_redundant_target_lang;
+
+    -- Register `test_tbl` with the meta table, to activate all the l10n magic.
+    insert into l10n_table
+        (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
     values (
-        'test_tbl_a'
+        'test_tbl'
         ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
         ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
         ,array['en', 'fr']::lang_code_alpha2[]
     );
 
-    assert array['test_tbl_a_l10n_en', 'test_tbl_a_l10n_fr', 'test_tbl_a_l10n_nl']::name[] = (
-        select      array_agg(views.table_name order by views.table_name)::name[]
-        from        information_schema.views
-        where       views.table_schema = current_schema
-                    and views.table_name like 'test\_tbl\_a\_l10n\___'
-    );
+    assert to_regclass('test_tbl_l10n') is not null,
+        'The `_l10n` table should have been created as result of the preceding INSERT into the meta table.';
 
-    _nl_expected_1 := row(
-        1, 'AX-UNI', 'nl', 'Bijl Universiteit', 'De trainingsleider in bijlonderhoud en gebruik'
-    )::test_tbl_a_l10n_nl;
+    assert array['test_tbl_l10n_en', 'test_tbl_l10n_fr', 'test_tbl_l10n_nl']::name[] = (
+            select
+                array_agg(pg_class.relname order by pg_class.relname)::name[]
+            from
+                pg_catalog.pg_class
+            where
+                pg_class.relkind = 'v'
+                and pg_class.relnamespace = current_schema::regnamespace
+                and pg_class.relname like 'test\_tbl\_l10n\___'
+        )
+        ,'3 `_l10n_<lang_code>`-suffixed views should have been created, one for the base language'
+            || ' and 2 for the target languages.';
 
-    insert into test_tbl_a_l10n_nl ("universal blergh", name, "description (short)")
-        values (_nl_expected_1."universal blergh", _nl_expected_1.name, _nl_expected_1."description (short)")
-        returning *
-        into _row;
-
-    assert _row = _nl_expected_1;
-
-    assert _nl_expected_1 = (select row(tbl.*)::test_tbl_a_l10n_nl from test_tbl_a_l10n_nl as tbl);
-
-    _en_expected_1 := row(
-        1, 'AX-UNI', 'en', 'Axe University', 'The leader in axe maintenance and usage training'
-    )::test_tbl_a_l10n_en;
-
-    update test_tbl_a_l10n_en
-        set "name" = _en_expected_1."name"
-            ,"description (short)" = _en_expected_1."description (short)"
-        where
-            id = _nl_expected_1.id
+    <<upsert_into_l10n_lang_view>>
+    declare
+        _nl_expected record := row(
+            1, 'AX-UNI', 'nl', 'Bijl Universiteit', 'De trainingsleider in bijlonderhoud en gebruik'
+        )::test_tbl_l10n_nl;
+        _en_expected record := row(
+            1, 'AX-UNI', 'en', 'Axe University', 'The leader in axe maintenance and usage training'
+        )::test_tbl_l10n_en;
+    begin
+        insert into test_tbl_l10n_nl
+            ("universal blergh", name, "description (short)")
+        values
+            (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
         returning
             *
         into
-            _row;
+            _row
+        ;
 
-    assert _row = _en_expected_1,
-        format('%s ≠ %s', _row, _en_expected_1);
+        assert _row = _nl_expected, format(
+            'The `RETURNING` clause did not return the data as inserted; %s ≠ %s'
+            ,_row, _nl_expected
+        );
 
-    assert _en_expected_1 = (select row(tbl.*)::test_tbl_a_l10n_en from test_tbl_a_l10n_en as tbl);
+        assert _nl_expected = (select row(tbl.*)::test_tbl_l10n_nl from test_tbl_l10n_nl as tbl),
+            'The `RETURNING` clause should have returned the same row data as this separate `SELECT`.';
 
-    _nl_expected_2 := row(
-        2, 'PO-UNI', 'nl', 'Poep-Universiteit', 'De Beste Plek om Te Leren Legen'
-    )::test_tbl_a_l10n_nl;
+        assert exists(select from test_tbl_l10n_en where id = _nl_expected.id),
+            'Even though the row for English doesn''t exist in `test_tbl_l10n` yet, it should exist in the'
+            ' `test_l10n_en` view, with NULL values for all the l10n columns.';
 
-    insert into test_tbl_a_l10n_nl ("universal blergh", name, "description (short)")
-        values (_nl_expected_2."universal blergh", _nl_expected_2.name, _nl_expected_2."description (short)")
-        returning *
-        into _row;
-    assert _row = _nl_expected_2;
+        update
+            test_tbl_l10n_en
+        set
+            "name" = _en_expected."name"
+            ,"description (short)" = _en_expected."description (short)"
+        where
+            id = _nl_expected.id
+        returning
+            *
+        into
+            _row
+        ;
 
-    delete from test_tbl_a_l10n_fr where id = 1;
-    assert found;
+        assert found, 'The `UPDATE` should have found a row to update in the `test_tbl_l10n_en` view.';
 
-    <<trigger_alter_table_event>>
+        assert _row = _en_expected,
+            format('%s ≠ %s; the `RETURNING` clause did not return the data as upserted.', _row, _en_expected);
+
+        assert _en_expected = (select row(tbl.*)::test_tbl_l10n_en from test_tbl_l10n_en as tbl),
+            'The `RETURNING` clause should have returned the same row data as this separate `SELECT`.';
+    end upsert_into_l10n_lang_view;
+
+    <<try_to_override_generated_pk>>
+    declare
+        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _nl_expected record := row(
+            _expected_id, 'SIMP-UNI', 'nl', 'Simpschool', 'Simpen voor Elon en Jeff'
+        )::test_tbl_l10n_nl;
     begin
-        alter table test_tbl_a_l10n
+        insert into test_tbl_l10n_nl
+            (id, "universal blergh", name, "description (short)")
+        values (
+            _nl_expected.id
+            ,_nl_expected."universal blergh"
+            ,_nl_expected.name
+            ,_nl_expected."description (short)"
+        )
+        returning
+            *
+        into
+            _row
+        ;
+
+        raise assert_failure using
+            message = 'It should not be possible to explicitly specify a PK value on insert'
+                'if that PK is `GENERATED ALWAYS`.';
+    exception
+        when generated_always then
+    end try_to_override_generated_pk;
+
+    <<insert_instead_of_update_on_missing_l10n_record>>
+    declare
+        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _nl_expected record := row(
+            _expected_id, 'PO-UNI', 'nl', 'Poep-Universiteit', 'De Beste Plek om Te Leren Legen'
+        )::test_tbl_l10n_nl;
+        _en_expected record := row(
+            _expected_id, 'PO-UNI', 'en', 'Pooversity', 'The Best Place To Empty Yourself'
+        )::test_tbl_l10n_nl;
+    begin
+        insert into test_tbl_l10n_nl
+            ("universal blergh", name, "description (short)")
+        values
+            (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
+        returning
+            *
+        into
+            _row
+        ;
+
+        -- Test that the trigger `test_tbl_l10n_en` does an INSERT instead of an UPDATE if no row for this
+        -- PK + lang_code combo exists yet in `test_tbl_l10n`.
+        update
+            test_tbl_l10n_en
+        set
+            "universal blergh" = _en_expected."universal blergh"
+            ,name = _en_expected.name
+            ,"description (short)" = _en_expected."description (short)"
+        where
+            id = _en_expected.id
+        returning
+            *
+        into
+            _row
+        ;
+
+        assert _row = _en_expected, format('%s ≠ %s', _row, _en_expected);
+    end insert_instead_of_update_on_missing_l10n_record;
+
+    <<delete_via_l10n_view>>
+    declare
+        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _fr_expected record := row(
+            _expected_id, 'MOI-UNI', 'fr', 'Moiversitee', 'La Premier Bla'
+        )::test_tbl_l10n_fr;
+    begin
+        insert into test_tbl_l10n_fr
+            ("universal blergh", name, "description (short)")
+        values
+            (_fr_expected."universal blergh", _fr_expected.name, _fr_expected."description (short)")
+        returning
+            *
+        into
+            _row
+        ;
+        delete from test_tbl_l10n_fr where id = _row.id;
+        assert found;
+        assert not exists (select from test_tbl where id = _row.id),
+            'The base table record should have been deleted.';
+        assert not exists (
+                select from test_tbl_l10n where id = _row.id and l10n_lang_code = _row.l10n_lang_code
+            )
+            ,'The l10n record should have been deleted, via the `ON DELETE CASCADE` to the base table.';
+    end delete_via_l10n_view;
+
+    <<trigger_alter_table_events>>
+    begin
+        alter table test_tbl_l10n
             add description2 text;
 
-        update test_tbl_a_l10n
+        update test_tbl_l10n
             set description2 = 'Something to satisfy NOT NULL';  -- Because we want to make it NOT NULL.
 
-        alter table test_tbl_a_l10n
+        alter table test_tbl_l10n
             alter column description2 set not null;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
 
         assert _l10n_table.l10n_column_definitions[3] = 'description2 text NOT NULL',
             'The `l10n_table__track_alter_table_events` event trigger should have updated the list of l10n'
@@ -696,15 +823,15 @@ begin
         assert exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_a_l10n_fr'::regclass
+                where   attrelid = 'test_tbl_l10n_fr'::regclass
                         and attname = 'description2'
             ), 'The `description2` column should have been added to the view.';
 
-        alter table test_tbl_a_l10n
+        alter table test_tbl_l10n
             drop column description2
             cascade;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
 
         assert array_length(_l10n_table.l10n_column_definitions, 1) = 2,
             'The dropped column should have been removed from the `l10n_table` meta table.';
@@ -712,47 +839,129 @@ begin
         assert not exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                where   attrelid = 'test_tbl_l10n_nl'::regclass
                         and attname = 'description2'
             ), 'The `description2` column should have disappeared from the views.';
 
-        alter table test_tbl_a
+        alter table test_tbl
             add non_l10n_col int
                 not null
                 default 6;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl_a';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
 
         assert _l10n_table.base_column_definitions[3] = 'non_l10n_col integer NOT NULL DEFAULT 6',
             'The `l10n_table__track_alter_table_events` event trigger should have updated the list of base'
             ' columns.';
 
-        assert (select non_l10n_col from test_tbl_a_l10n_nl where id = 2) = 6;
+        assert (select non_l10n_col from test_tbl_l10n_nl where id = 2) = 6;
 
-        alter table test_tbl_a
+        alter table test_tbl
             drop column non_l10n_col
             cascade;
 
         assert not exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_a_l10n_nl'::regclass
+                where   attrelid = 'test_tbl_l10n_nl'::regclass
                         and attname = 'non_l10n_col'
             ), 'The `non_l10n_col` column should have disappeared from the views.';
 
+        <<add_base_column_with_default_value>>
+        declare
+            _nl_expected record;
+        begin
+            alter table test_tbl
+                add column base_col_with_default text
+                    not null
+                    default 'I am default.';
+
+            alter table test_tbl_l10n
+                add column localized_image text
+                    not null
+                    default 'fallback.png';
+
+            select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
+
+            assert _l10n_table.base_column_definitions[3]
+                    = 'base_col_with_default text NOT NULL DEFAULT ''I am default.''::text',
+                format(
+                    'The `l10n_table__track_alter_table_events` event trigger should have updated the list of'
+                    ' base columns; base_column_definitions = ''%s'''
+                    ,_l10n_table.base_column_definitions
+                );
+
+            assert _l10n_table.l10n_column_definitions[3]
+                    = 'localized_image text NOT NULL DEFAULT ''fallback.png''::text',
+                format(
+                    'The `l10n_table__track_alter_table_events` event trigger should have updated the list of'
+                    ' l10n columns; l10n_column_definitions = ''%s'''
+                    ,_l10n_table.l10n_column_definitions
+                );
+
+            -- Now, let's test how the defaults behave on insert…
+
+            _nl_expected := row(
+                1, 'HOF', 'I am default.', 'nl', 'Wim Hof', 'De Ijsman', 'fallback.png'
+            )::test_tbl_l10n_nl;
+
+            insert into test_tbl_l10n_nl
+                ("universal blergh", name, "description (short)")
+            values
+                (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
+            returning
+                *
+            into
+                _row
+            ;
+
+            assert _row.base_col_with_default = _nl_expected.base_col_with_default,
+                'Default should have propegated from the base table to view.';
+            assert _row.localized_image = _nl_expected.localized_image,
+                'Default should have propegated from the l10n table to view.';
+        end add_base_column_with_default_value;
+
         <<drop_base_table>>
         begin
-            drop table test_tbl_a cascade;
+            drop table test_tbl cascade;
 
-            assert not exists (select from l10n_table where base_table_name = 'test_tbl_a');
+            assert not exists (select from l10n_table where base_table_name = 'test_tbl');
 
             raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
         exception
             when transaction_rollback then
         end drop_base_table;
-    end trigger_alter_table_event;
+    end trigger_alter_table_events;
 
-    delete from l10n_table where base_table_regclass = 'test_tbl_a'::regclass;
+    -- DELETE-ing the meta info for our l10n table should cascade cleanly, without crashing.
+    delete from l10n_table where base_table_regclass = 'test_tbl'::regclass;
+
+    assert to_regclass('test_tbl_l10n') is null,
+        'The actual `_l10n` table should have been removed when deleting the meta row from `l10n_table`.';
+
+    <<insert_natural_key>>
+    declare
+        _expected record;
+    begin
+        -- Let's make a table with a natural primary key that is _not_ `GENERATED ALWAYS`.
+        create table test_species (
+            scientific_name text
+                primary key
+        );
+
+        -- Register `test_species` with the meta table, to activate all the l10n magic.
+        insert into l10n_table
+            (base_table_name, l10n_column_definitions, base_lang_code)
+        values
+            ('test_species' ,'{common_name TEXT}' ,'en')
+        ;
+
+        insert into test_species_l10n_en
+            (scientific_name, common_name)
+        values
+            ('Taraxacum officinale', 'common dandelion')
+        ;
+    end insert_natural_key;
 
     raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
 exception
