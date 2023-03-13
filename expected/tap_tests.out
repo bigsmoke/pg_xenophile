@@ -4,16 +4,16 @@ create extension pg_xenophile
 NOTICE:  installing required extension "hstore"
 call xeno.test__l10n_table();
 NOTICE:  drop cascades to 3 other objects
-DETAIL:  drop cascades to view test_tbl_l10n_en
-drop cascades to view test_tbl_l10n_fr
-drop cascades to view test_tbl_l10n_nl
+DETAIL:  drop cascades to view test_uni_l10n_en
+drop cascades to view test_uni_l10n_fr
+drop cascades to view test_uni_l10n_nl
 NOTICE:  drop cascades to 3 other objects
-DETAIL:  drop cascades to view test_tbl_l10n_en
-drop cascades to view test_tbl_l10n_fr
-drop cascades to view test_tbl_l10n_nl
+DETAIL:  drop cascades to view test_uni_l10n_en
+drop cascades to view test_uni_l10n_fr
+drop cascades to view test_uni_l10n_nl
 NOTICE:  drop cascades to 4 other objects
-DETAIL:  drop cascades to constraint test_tbl_l10n_id_fkey on table test_tbl_l10n
-drop cascades to view test_tbl_l10n_en
-drop cascades to view test_tbl_l10n_fr
-drop cascades to view test_tbl_l10n_nl
+DETAIL:  drop cascades to constraint test_uni_l10n_id_fkey on table test_uni_l10n
+drop cascades to view test_uni_l10n_en
+drop cascades to view test_uni_l10n_fr
+drop cascades to view test_uni_l10n_nl
 rollback;

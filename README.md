@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.8
-pg_readme_generated_at: 2023-03-13 15:05:24.470055+00
+pg_extension_version: 0.5.9
+pg_readme_generated_at: 2023-03-13 15:35:44.299505+00
 pg_readme_version: 0.6.0
 ---
 
@@ -95,6 +95,133 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
+
+#### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
+
+The `currency` table has 5 attributes:
+
+1. `currency.currency_code` `currency_code`
+
+   `currency_code` is a 3-letter ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (currency_code)`
+
+2. `currency.currency_code_num` `text`
+
+   `currency_code` is the numeric 3-digit ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
+   - `UNIQUE (currency_code_num)`
+
+3. `currency.currency_symbol` `text`
+
+   - `NOT NULL`
+   - `CHECK (length(currency_symbol) = 1)`
+
+4. `currency.decimal_digits` `integer`
+
+   - `NOT NULL`
+   - `DEFAULT 2`
+
+5. `currency.currency_belongs_to_pg_xenophile` `boolean`
+
+   Does this currency belong to the `pg_xenophile` extension or not.
+
+   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
+   inserted by the extension user rather than the extension developer.  Instead
+   (or in addition) of adding such custom rows, please feel free to submit patches
+   with all the currencies that you wish for `pg_xenophile` to embrace.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_postal_code_pattern`
+
+The `country_postal_code_pattern` table has 8 attributes:
+
+1. `country_postal_code_pattern.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
+
+   - `NOT NULL`
+
+3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
+
+4. `country_postal_code_pattern.clean_postal_code_replace` `text`
+
+5. `country_postal_code_pattern.postal_code_example` `text`
+
+   - `NOT NULL`
+
+6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
+
+7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
+
+8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `l10n_table`
 
@@ -262,133 +389,6 @@ The `country_l10n` table has 4 attributes:
 4. `country_l10n.name` `text`
 
    - `NOT NULL`
-
-#### Table: `currency`
-
-The `currency` table contains the currencies known to `pg_xenophile`.
-
-The `currency` table has 5 attributes:
-
-1. `currency.currency_code` `currency_code`
-
-   `currency_code` is a 3-letter ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (currency_code)`
-
-2. `currency.currency_code_num` `text`
-
-   `currency_code` is the numeric 3-digit ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
-   - `UNIQUE (currency_code_num)`
-
-3. `currency.currency_symbol` `text`
-
-   - `NOT NULL`
-   - `CHECK (length(currency_symbol) = 1)`
-
-4. `currency.decimal_digits` `integer`
-
-   - `NOT NULL`
-   - `DEFAULT 2`
-
-5. `currency.currency_belongs_to_pg_xenophile` `boolean`
-
-   Does this currency belong to the `pg_xenophile` extension or not.
-
-   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
-   inserted by the extension user rather than the extension developer.  Instead
-   (or in addition) of adding such custom rows, please feel free to submit patches
-   with all the currencies that you wish for `pg_xenophile` to embrace.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country`
-
-The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
-
-The `country` table has 6 attributes:
-
-1. `country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-
-2. `country.country_code_alpha3` `text`
-
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_postal_code_pattern`
-
-The `country_postal_code_pattern` table has 8 attributes:
-
-1. `country_postal_code_pattern.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
-
-   - `NOT NULL`
-
-3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
-
-4. `country_postal_code_pattern.clean_postal_code_replace` `text`
-
-5. `country_postal_code_pattern.postal_code_example` `text`
-
-   - `NOT NULL`
-
-6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
-
-7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
-
-8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
 
 ### Views
 
@@ -607,11 +607,17 @@ declare
     _l10n_table l10n_table;
 begin
     -- Create the table that will be translated.
-    create table test_tbl (
+    create table test_uni (
         id bigint
             primary key
             generated always as identity
-        ,"universal blergh" text
+        ,uni_abbr text
+            not null
+            unique
+        -- We need to have more than one non-PK column, to ensure that we're hitting the requirement to agg.
+        -- Also, let's put a space in the column name, so that we're testing proper quoting as well.
+        ,"student rating" bigint
+            default 5
     );
 
     <<with_redundant_target_lang>>
@@ -621,7 +627,7 @@ begin
         insert into l10n_table
             (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
         values (
-            'test_tbl'
+            'test_uni'
             ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
             ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
             ,array['nl']::lang_code_alpha2[]
@@ -631,20 +637,20 @@ begin
         when transaction_rollback then
     end with_redundant_target_lang;
 
-    -- Register `test_tbl` with the meta table, to activate all the l10n magic.
+    -- Register `test_uni` with the meta table, to activate all the l10n magic.
     insert into l10n_table
         (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
     values (
-        'test_tbl'
+        'test_uni'
         ,array['name TEXT NOT NULL', '"description (short)" TEXT NOT NULL']
         ,'nl'::lang_code_alpha2  -- Apologies for the Dutch East India Company mentality.
         ,array['en', 'fr']::lang_code_alpha2[]
     );
 
-    assert to_regclass('test_tbl_l10n') is not null,
+    assert to_regclass('test_uni_l10n') is not null,
         'The `_l10n` table should have been created as result of the preceding INSERT into the meta table.';
 
-    assert array['test_tbl_l10n_en', 'test_tbl_l10n_fr', 'test_tbl_l10n_nl']::name[] = (
+    assert (
             select
                 array_agg(pg_class.relname order by pg_class.relname)::name[]
             from
@@ -652,24 +658,24 @@ begin
             where
                 pg_class.relkind = 'v'
                 and pg_class.relnamespace = current_schema::regnamespace
-                and pg_class.relname like 'test\_tbl\_l10n\___'
-        )
+                and pg_class.relname like 'test\_uni\_l10n\___'
+        ) = array['test_uni_l10n_en', 'test_uni_l10n_fr', 'test_uni_l10n_nl']::name[]
         ,'3 `_l10n_<lang_code>`-suffixed views should have been created, one for the base language'
             || ' and 2 for the target languages.';
 
     <<upsert_into_l10n_lang_view>>
     declare
         _nl_expected record := row(
-            1, 'AX-UNI', 'nl', 'Bijl Universiteit', 'De trainingsleider in bijlonderhoud en gebruik'
-        )::test_tbl_l10n_nl;
+            1, 'AX-UNI', 5, 'nl', 'Bijl Universiteit', 'De trainingsleider in bijlonderhoud en gebruik'
+        )::test_uni_l10n_nl;
         _en_expected record := row(
-            1, 'AX-UNI', 'en', 'Axe University', 'The leader in axe maintenance and usage training'
-        )::test_tbl_l10n_en;
+            1, 'AX-UNI', 5, 'en', 'Axe University', 'The leader in axe maintenance and usage training'
+        )::test_uni_l10n_en;
     begin
-        insert into test_tbl_l10n_nl
-            ("universal blergh", name, "description (short)")
+        insert into test_uni_l10n_nl
+            (uni_abbr, name, "description (short)")
         values
-            (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
+            (_nl_expected.uni_abbr, _nl_expected.name, _nl_expected."description (short)")
         returning
             *
         into
@@ -681,15 +687,15 @@ begin
             ,_row, _nl_expected
         );
 
-        assert _nl_expected = (select row(tbl.*)::test_tbl_l10n_nl from test_tbl_l10n_nl as tbl),
+        assert _nl_expected = (select row(tbl.*)::test_uni_l10n_nl from test_uni_l10n_nl as tbl),
             'The `RETURNING` clause should have returned the same row data as this separate `SELECT`.';
 
-        assert exists(select from test_tbl_l10n_en where id = _nl_expected.id),
-            'Even though the row for English doesn''t exist in `test_tbl_l10n` yet, it should exist in the'
+        assert exists(select from test_uni_l10n_en where id = _nl_expected.id),
+            'Even though the row for English doesn''t exist in `test_uni_l10n` yet, it should exist in the'
             ' `test_l10n_en` view, with NULL values for all the l10n columns.';
 
         update
-            test_tbl_l10n_en
+            test_uni_l10n_en
         set
             "name" = _en_expected."name"
             ,"description (short)" = _en_expected."description (short)"
@@ -701,27 +707,28 @@ begin
             _row
         ;
 
-        assert found, 'The `UPDATE` should have found a row to update in the `test_tbl_l10n_en` view.';
+        assert found, 'The `UPDATE` should have found a row to update in the `test_uni_l10n_en` view.';
 
         assert _row = _en_expected,
             format('%s ≠ %s; the `RETURNING` clause did not return the data as upserted.', _row, _en_expected);
 
-        assert _en_expected = (select row(tbl.*)::test_tbl_l10n_en from test_tbl_l10n_en as tbl),
+        assert _en_expected = (select row(tbl.*)::test_uni_l10n_en from test_uni_l10n_en as tbl),
             'The `RETURNING` clause should have returned the same row data as this separate `SELECT`.';
     end upsert_into_l10n_lang_view;
 
     <<try_to_override_generated_pk>>
     declare
-        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _expected_id bigint := currval('test_uni_id_seq') + 1;
         _nl_expected record := row(
-            _expected_id, 'SIMP-UNI', 'nl', 'Simpschool', 'Simpen voor Elon en Jeff'
-        )::test_tbl_l10n_nl;
+            _expected_id, 'SIMP-UNI', 2, 'nl', 'Simpschool', 'Simpen voor Elon en Jeff'
+        )::test_uni_l10n_nl;
     begin
-        insert into test_tbl_l10n_nl
-            (id, "universal blergh", name, "description (short)")
+        insert into test_uni_l10n_nl
+            (id, uni_abbr, "student rating", name, "description (short)")
         values (
             _nl_expected.id
-            ,_nl_expected."universal blergh"
+            ,_nl_expected.uni_abbr
+            ,_nl_expected."student rating"
             ,_nl_expected.name
             ,_nl_expected."description (short)"
         )
@@ -740,30 +747,34 @@ begin
 
     <<insert_instead_of_update_on_missing_l10n_record>>
     declare
-        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _expected_id bigint := currval('test_uni_id_seq') + 1;
         _nl_expected record := row(
-            _expected_id, 'PO-UNI', 'nl', 'Poep-Universiteit', 'De Beste Plek om Te Leren Legen'
-        )::test_tbl_l10n_nl;
+            _expected_id, 'PO-UNI', 7, 'nl', 'Poep-Universiteit', 'De Beste Plek om Te Leren Legen'
+        )::test_uni_l10n_nl;
         _en_expected record := row(
-            _expected_id, 'PO-UNI', 'en', 'Pooversity', 'The Best Place To Empty Yourself'
-        )::test_tbl_l10n_nl;
+            _expected_id, 'PO-UNI', 7, 'en', 'Pooversity', 'The Best Place To Empty Yourself'
+        )::test_uni_l10n_nl;
     begin
-        insert into test_tbl_l10n_nl
-            ("universal blergh", name, "description (short)")
-        values
-            (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
+        insert into test_uni_l10n_nl
+            (uni_abbr, "student rating", name, "description (short)")
+        values (
+            _nl_expected.uni_abbr
+            ,_nl_expected."student rating"
+            ,_nl_expected.name
+            ,_nl_expected."description (short)"
+        )
         returning
             *
         into
             _row
         ;
 
-        -- Test that the trigger `test_tbl_l10n_en` does an INSERT instead of an UPDATE if no row for this
-        -- PK + lang_code combo exists yet in `test_tbl_l10n`.
+        -- Test that the trigger `test_uni_l10n_en` does an INSERT instead of an UPDATE if no row for this
+        -- PK + lang_code combo exists yet in `test_uni_l10n`.
         update
-            test_tbl_l10n_en
+            test_uni_l10n_en
         set
-            "universal blergh" = _en_expected."universal blergh"
+            uni_abbr = _en_expected.uni_abbr
             ,name = _en_expected.name
             ,"description (short)" = _en_expected."description (short)"
         where
@@ -779,42 +790,42 @@ begin
 
     <<delete_via_l10n_view>>
     declare
-        _expected_id bigint := currval('test_tbl_id_seq') + 1;
+        _expected_id bigint := currval('test_uni_id_seq') + 1;
         _fr_expected record := row(
-            _expected_id, 'MOI-UNI', 'fr', 'Moiversitee', 'La Premier Bla'
-        )::test_tbl_l10n_fr;
+            _expected_id, 'MOI-UNI', null, 'fr', 'Moiversitee', 'La Premier Bla'
+        )::test_uni_l10n_fr;
     begin
-        insert into test_tbl_l10n_fr
-            ("universal blergh", name, "description (short)")
+        insert into test_uni_l10n_fr
+            (uni_abbr, name, "description (short)")
         values
-            (_fr_expected."universal blergh", _fr_expected.name, _fr_expected."description (short)")
+            (_fr_expected.uni_abbr, _fr_expected.name, _fr_expected."description (short)")
         returning
             *
         into
             _row
         ;
-        delete from test_tbl_l10n_fr where id = _row.id;
+        delete from test_uni_l10n_fr where id = _row.id;
         assert found;
-        assert not exists (select from test_tbl where id = _row.id),
+        assert not exists (select from test_uni where id = _row.id),
             'The base table record should have been deleted.';
         assert not exists (
-                select from test_tbl_l10n where id = _row.id and l10n_lang_code = _row.l10n_lang_code
+                select from test_uni_l10n where id = _row.id and l10n_lang_code = _row.l10n_lang_code
             )
             ,'The l10n record should have been deleted, via the `ON DELETE CASCADE` to the base table.';
     end delete_via_l10n_view;
 
     <<trigger_alter_table_events>>
     begin
-        alter table test_tbl_l10n
+        alter table test_uni_l10n
             add description2 text;
 
-        update test_tbl_l10n
+        update test_uni_l10n
             set description2 = 'Something to satisfy NOT NULL';  -- Because we want to make it NOT NULL.
 
-        alter table test_tbl_l10n
+        alter table test_uni_l10n
             alter column description2 set not null;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_uni';
 
         assert _l10n_table.l10n_column_definitions[3] = 'description2 text NOT NULL',
             'The `l10n_table__track_alter_table_events` event trigger should have updated the list of l10n'
@@ -823,15 +834,15 @@ begin
         assert exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_l10n_fr'::regclass
+                where   attrelid = 'test_uni_l10n_fr'::regclass
                         and attname = 'description2'
             ), 'The `description2` column should have been added to the view.';
 
-        alter table test_tbl_l10n
+        alter table test_uni_l10n
             drop column description2
             cascade;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_uni';
 
         assert array_length(_l10n_table.l10n_column_definitions, 1) = 2,
             'The dropped column should have been removed from the `l10n_table` meta table.';
@@ -839,31 +850,31 @@ begin
         assert not exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_l10n_nl'::regclass
+                where   attrelid = 'test_uni_l10n_nl'::regclass
                         and attname = 'description2'
             ), 'The `description2` column should have disappeared from the views.';
 
-        alter table test_tbl
+        alter table test_uni
             add non_l10n_col int
                 not null
                 default 6;
 
-        select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
+        select * into _l10n_table from l10n_table where base_table_name = 'test_uni';
 
-        assert _l10n_table.base_column_definitions[3] = 'non_l10n_col integer NOT NULL DEFAULT 6',
+        assert _l10n_table.base_column_definitions[4] = 'non_l10n_col integer NOT NULL DEFAULT 6',
             'The `l10n_table__track_alter_table_events` event trigger should have updated the list of base'
             ' columns.';
 
-        assert (select non_l10n_col from test_tbl_l10n_nl where id = 2) = 6;
+        assert (select non_l10n_col from test_uni_l10n_nl where id = 2) = 6;
 
-        alter table test_tbl
+        alter table test_uni
             drop column non_l10n_col
             cascade;
 
         assert not exists(
                 select
                 from    pg_attribute
-                where   attrelid = 'test_tbl_l10n_nl'::regclass
+                where   attrelid = 'test_uni_l10n_nl'::regclass
                         and attname = 'non_l10n_col'
             ), 'The `non_l10n_col` column should have disappeared from the views.';
 
@@ -871,19 +882,19 @@ begin
         declare
             _nl_expected record;
         begin
-            alter table test_tbl
+            alter table test_uni
                 add column base_col_with_default text
                     not null
                     default 'I am default.';
 
-            alter table test_tbl_l10n
+            alter table test_uni_l10n
                 add column localized_image text
                     not null
                     default 'fallback.png';
 
-            select * into _l10n_table from l10n_table where base_table_name = 'test_tbl';
+            select * into _l10n_table from l10n_table where base_table_name = 'test_uni';
 
-            assert _l10n_table.base_column_definitions[3]
+            assert _l10n_table.base_column_definitions[4]
                     = 'base_col_with_default text NOT NULL DEFAULT ''I am default.''::text',
                 format(
                     'The `l10n_table__track_alter_table_events` event trigger should have updated the list of'
@@ -902,13 +913,13 @@ begin
             -- Now, let's test how the defaults behave on insert…
 
             _nl_expected := row(
-                1, 'HOF', 'I am default.', 'nl', 'Wim Hof', 'De Ijsman', 'fallback.png'
-            )::test_tbl_l10n_nl;
+                1, 'HOF', 5, 'I am default.', 'nl', 'Wim Hof', 'De Ijsman', 'fallback.png'
+            )::test_uni_l10n_nl;
 
-            insert into test_tbl_l10n_nl
-                ("universal blergh", name, "description (short)")
+            insert into test_uni_l10n_nl
+                (uni_abbr, name, "description (short)")
             values
-                (_nl_expected."universal blergh", _nl_expected.name, _nl_expected."description (short)")
+                (_nl_expected.uni_abbr, _nl_expected.name, _nl_expected."description (short)")
             returning
                 *
             into
@@ -923,9 +934,9 @@ begin
 
         <<drop_base_table>>
         begin
-            drop table test_tbl cascade;
+            drop table test_uni cascade;
 
-            assert not exists (select from l10n_table where base_table_name = 'test_tbl');
+            assert not exists (select from l10n_table where base_table_name = 'test_uni');
 
             raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
         exception
@@ -934,9 +945,9 @@ begin
     end trigger_alter_table_events;
 
     -- DELETE-ing the meta info for our l10n table should cascade cleanly, without crashing.
-    delete from l10n_table where base_table_regclass = 'test_tbl'::regclass;
+    delete from l10n_table where base_table_regclass = 'test_uni'::regclass;
 
-    assert to_regclass('test_tbl_l10n') is null,
+    assert to_regclass('test_uni_l10n') is null,
         'The actual `_l10n` table should have been removed when deleting the meta row from `l10n_table`.';
 
     <<insert_natural_key>>
