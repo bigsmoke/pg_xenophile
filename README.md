@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.7
-pg_readme_generated_at: 2023-03-10 14:22:36.031296+00
+pg_extension_version: 0.5.8
+pg_readme_generated_at: 2023-03-13 15:05:24.470055+00
 pg_readme_version: 0.6.0
 ---
 
@@ -95,133 +95,6 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
-
-#### Table: `currency`
-
-The `currency` table contains the currencies known to `pg_xenophile`.
-
-The `currency` table has 5 attributes:
-
-1. `currency.currency_code` `currency_code`
-
-   `currency_code` is a 3-letter ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (currency_code)`
-
-2. `currency.currency_code_num` `text`
-
-   `currency_code` is the numeric 3-digit ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
-   - `UNIQUE (currency_code_num)`
-
-3. `currency.currency_symbol` `text`
-
-   - `NOT NULL`
-   - `CHECK (length(currency_symbol) = 1)`
-
-4. `currency.decimal_digits` `integer`
-
-   - `NOT NULL`
-   - `DEFAULT 2`
-
-5. `currency.currency_belongs_to_pg_xenophile` `boolean`
-
-   Does this currency belong to the `pg_xenophile` extension or not.
-
-   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
-   inserted by the extension user rather than the extension developer.  Instead
-   (or in addition) of adding such custom rows, please feel free to submit patches
-   with all the currencies that you wish for `pg_xenophile` to embrace.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country`
-
-The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
-
-The `country` table has 6 attributes:
-
-1. `country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-
-2. `country.country_code_alpha3` `text`
-
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_postal_code_pattern`
-
-The `country_postal_code_pattern` table has 8 attributes:
-
-1. `country_postal_code_pattern.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
-
-   - `NOT NULL`
-
-3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
-
-4. `country_postal_code_pattern.clean_postal_code_replace` `text`
-
-5. `country_postal_code_pattern.postal_code_example` `text`
-
-   - `NOT NULL`
-
-6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
-
-7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
-
-8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
 
 #### Table: `l10n_table`
 
@@ -389,6 +262,133 @@ The `country_l10n` table has 4 attributes:
 4. `country_l10n.name` `text`
 
    - `NOT NULL`
+
+#### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
+
+The `currency` table has 5 attributes:
+
+1. `currency.currency_code` `currency_code`
+
+   `currency_code` is a 3-letter ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (currency_code)`
+
+2. `currency.currency_code_num` `text`
+
+   `currency_code` is the numeric 3-digit ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
+   - `UNIQUE (currency_code_num)`
+
+3. `currency.currency_symbol` `text`
+
+   - `NOT NULL`
+   - `CHECK (length(currency_symbol) = 1)`
+
+4. `currency.decimal_digits` `integer`
+
+   - `NOT NULL`
+   - `DEFAULT 2`
+
+5. `currency.currency_belongs_to_pg_xenophile` `boolean`
+
+   Does this currency belong to the `pg_xenophile` extension or not.
+
+   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
+   inserted by the extension user rather than the extension developer.  Instead
+   (or in addition) of adding such custom rows, please feel free to submit patches
+   with all the currencies that you wish for `pg_xenophile` to embrace.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_postal_code_pattern`
+
+The `country_postal_code_pattern` table has 8 attributes:
+
+1. `country_postal_code_pattern.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
+
+   - `NOT NULL`
+
+3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
+
+4. `country_postal_code_pattern.clean_postal_code_replace` `text`
+
+5. `country_postal_code_pattern.postal_code_example` `text`
+
+   - `NOT NULL`
+
+6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
+
+7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
+
+8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 ### Views
 
@@ -947,6 +947,10 @@ begin
         create table test_species (
             scientific_name text
                 primary key
+            -- Just so you know: without the `year_first_described` column, the `INSERT INTO l10n_table`
+            -- would not trigger a certain bug, so please do not allow regressions to occur by removing
+            -- this column.
+            ,year_first_described int
         );
 
         -- Register `test_species` with the meta table, to activate all the l10n magic.
@@ -957,10 +961,22 @@ begin
         ;
 
         insert into test_species_l10n_en
-            (scientific_name, common_name)
+            (scientific_name, common_name, year_first_described)
         values
-            ('Taraxacum officinale', 'common dandelion')
+            ('Taraxacum officinale', 'common dandelion', 1753)
         ;
+
+        <<insert_duplicate_natural_key>>
+        begin
+            insert into test_species_l10n_en
+                (scientific_name, common_name)
+            values
+                ('Taraxacum officinale', 'uncommon dandelion')
+            ;
+            raise assert_failure using message = 'Duplicating a primary key shouldn''t have been possible.';
+        exception
+            when unique_violation then
+        end insert_duplicate_natural_key;
     end insert_natural_key;
 
     raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
