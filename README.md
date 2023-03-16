@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.9
-pg_readme_generated_at: 2023-03-13 15:35:44.299505+00
+pg_extension_version: 0.5.10
+pg_readme_generated_at: 2023-03-16 11:53:01.705416+00
 pg_readme_version: 0.6.0
 ---
 
@@ -225,8 +225,9 @@ The `eu_country` table has 3 attributes:
 
 #### Table: `l10n_table`
 
-The `l10n_table` table is meant to keep track and manage all the
-`_l10n`-suffixed tables.  By inserting a row in this table, with just the
+The `l10n_table` table is meant to keep track and manage all the `_l10n`-suffixed tables.
+
+By inserting a row in this table, with just the
 details of the base table, a many-to-one l10n table called
 `<base_table_name>_l10n` will be created by the `maintain_l10n_objects`
 trigger.  This trigger will also take care of creating the
@@ -245,12 +246,15 @@ It may not immediately be obvious why, besides the `base_table_regclass` and
 the `l10n_table_regclass` columns, `schema_name`, `base_table_name` and
 `l10n_table_name` also exist.  After all, PostgreSQL has some very comfortable
 magic surrounding `regclass` and related [object identifier
-types](https://www.postgresql.org/docs/current/datatype-oid.html).  The reason
-is that, even though `pg_dump` has the ability to dump OIDs, tables belonging
-to extensions are not dumped at all, except for any part exempted from this
-using the `pg_catalog.pg_extension_config_dump()` function.  For `l10n_table`,
-only the columns for which `l10n_table_belongs_to_pg_xenophile = false` are
-included in the dump.
+types](https://www.postgresql.org/docs/current/datatype-oid.html).  Two reasons:
+
+1.  Even though `pg_dump` has the ability to dump OIDs, tables belonging
+    to extensions are not dumped at all, except for any part exempted from this
+    using the `pg_catalog.pg_extension_config_dump()` function.  For
+    `l10n_table`, only the columns for which
+    `l10n_table_belongs_to_pg_xenophile = false` are included in the dump.
+2.  OIDs of tables and other catalog objects are not guaranteed to remain the
+    same between `pg_dump` and `pg_restore`.
 
 The `l10n_table` table has 11 attributes:
 
