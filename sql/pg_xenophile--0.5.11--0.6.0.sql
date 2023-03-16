@@ -3,6 +3,7 @@
 
 --------------------------------------------------------------------------------------------------------------
 
+-- Document new internal setting.
 comment on extension pg_xenophile is $md$
 # `pg_xenophile` PostgreSQL extension
 
