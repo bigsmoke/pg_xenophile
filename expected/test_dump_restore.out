@@ -1,0 +1,6 @@
+-- createdb 'test_dump_restore_oid_noise'
+-- psql -f 'sql/test_dump_restore.sql' -v 'extension_name=pg_xenophile' -v 'test_stage=pre-restore'
+DO
+-- pg_restore --create --dbname postgres <dump_file>
+-- psql -f 'sql/test_dump_restore.sql' -v 'extension_name=pg_xenophile' -v 'test_stage=post-restore'
+CALL

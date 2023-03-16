@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.5.11
-pg_readme_generated_at: 2023-03-16 12:02:51.55172+00
+pg_extension_version: 0.6.0
+pg_readme_generated_at: 2023-03-16 15:03:07.111051+00
 pg_readme_version: 0.6.0
 ---
 
@@ -75,6 +75,7 @@ back to the first two letters of the `lc_messages` setting.
 | -------------------------------------------- | ------------------------------- |
 | `pg_xenophile.in_l10n_table_event_trigger`   | `false`                         |
 | `pg_xenophile.in_l10n_table_row_trigger`     | `false`                         |
+| `pg_xenophile.pg_restore_seems_active`       | `false`                         |
 
 ## Object reference
 
@@ -95,6 +96,133 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
+
+#### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
+
+The `currency` table has 5 attributes:
+
+1. `currency.currency_code` `currency_code`
+
+   `currency_code` is a 3-letter ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (currency_code)`
+
+2. `currency.currency_code_num` `text`
+
+   `currency_code` is the numeric 3-digit ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
+   - `UNIQUE (currency_code_num)`
+
+3. `currency.currency_symbol` `text`
+
+   - `NOT NULL`
+   - `CHECK (length(currency_symbol) = 1)`
+
+4. `currency.decimal_digits` `integer`
+
+   - `NOT NULL`
+   - `DEFAULT 2`
+
+5. `currency.currency_belongs_to_pg_xenophile` `boolean`
+
+   Does this currency belong to the `pg_xenophile` extension or not.
+
+   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
+   inserted by the extension user rather than the extension developer.  Instead
+   (or in addition) of adding such custom rows, please feel free to submit patches
+   with all the currencies that you wish for `pg_xenophile` to embrace.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_postal_code_pattern`
+
+The `country_postal_code_pattern` table has 8 attributes:
+
+1. `country_postal_code_pattern.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
+
+   - `NOT NULL`
+
+3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
+
+4. `country_postal_code_pattern.clean_postal_code_replace` `text`
+
+5. `country_postal_code_pattern.postal_code_example` `text`
+
+   - `NOT NULL`
+
+6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
+
+7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
+
+8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `l10n_table`
 
@@ -266,133 +394,6 @@ The `country_l10n` table has 4 attributes:
 4. `country_l10n.name` `text`
 
    - `NOT NULL`
-
-#### Table: `currency`
-
-The `currency` table contains the currencies known to `pg_xenophile`.
-
-The `currency` table has 5 attributes:
-
-1. `currency.currency_code` `currency_code`
-
-   `currency_code` is a 3-letter ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (currency_code)`
-
-2. `currency.currency_code_num` `text`
-
-   `currency_code` is the numeric 3-digit ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
-   - `UNIQUE (currency_code_num)`
-
-3. `currency.currency_symbol` `text`
-
-   - `NOT NULL`
-   - `CHECK (length(currency_symbol) = 1)`
-
-4. `currency.decimal_digits` `integer`
-
-   - `NOT NULL`
-   - `DEFAULT 2`
-
-5. `currency.currency_belongs_to_pg_xenophile` `boolean`
-
-   Does this currency belong to the `pg_xenophile` extension or not.
-
-   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
-   inserted by the extension user rather than the extension developer.  Instead
-   (or in addition) of adding such custom rows, please feel free to submit patches
-   with all the currencies that you wish for `pg_xenophile` to embrace.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country`
-
-The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
-
-The `country` table has 6 attributes:
-
-1. `country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-
-2. `country.country_code_alpha3` `text`
-
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_postal_code_pattern`
-
-The `country_postal_code_pattern` table has 8 attributes:
-
-1. `country_postal_code_pattern.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
-
-   - `NOT NULL`
-
-3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
-
-4. `country_postal_code_pattern.clean_postal_code_replace` `text`
-
-5. `country_postal_code_pattern.postal_code_example` `text`
-
-   - `NOT NULL`
-
-6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
-
-7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
-
-8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
 
 ### Views
 
@@ -591,6 +592,90 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_user_lang_code()
  SET "pg_readme.include_this_routine_definition" TO 'true'
  SET search_path TO 'xeno', 'public', 'pg_temp'
 RETURN (COALESCE(current_setting('app_settings.i18n.user_lang_code'::text, true), current_setting('pg_xenophile.user_lang_code'::text, true), regexp_replace(current_setting('lc_messages'::text), '^([a-z]{2}).*$'::text, ''::text), 'en'::text))::lang_code_alpha2
+```
+
+#### Procedure: `test_dump_restore__l10n_table (text)`
+
+Procedure arguments:
+
+| Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
+| ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+|   `$1` |       `IN` | `test_stage$`                                                     | `text`                                                               |  |
+
+Procedure-local settings:
+
+  *  `SET search_path TO xeno, public, pg_temp`
+  *  `SET plpgsql.check_asserts TO true`
+
+```sql
+CREATE OR REPLACE PROCEDURE xeno.test_dump_restore__l10n_table(IN "test_stage$" text)
+ LANGUAGE plpgsql
+ SET search_path TO 'xeno', 'public', 'pg_temp'
+ SET "plpgsql.check_asserts" TO 'true'
+AS $procedure$
+declare
+    _en_expected record;
+    _nl_expected record;
+    _en_actual record;
+    _nl_actual record;
+begin
+    assert test_stage$ in ('pre-dump', 'post-restore');
+
+    if test_stage$ = 'pre-dump' then
+        -- Create the table that will be translated.
+        create table test_uni (
+            uni_abbr text
+                primary key
+        );
+
+        insert into l10n_table
+            (base_table_name, l10n_column_definitions, base_lang_code, target_lang_codes)
+        values (
+            'test_uni'
+            ,array['name TEXT NOT NULL']
+            ,'en'::lang_code_alpha2
+            ,array['nl', 'fr']::lang_code_alpha2[]
+        );
+
+        assert to_regclass('test_uni_l10n') is not null,
+            'The `_l10n` table should have been created as result of the preceding INSERT into the meta table.';
+    end if;
+
+    -- Set up the expected data, now that we for sure have the `test_uni_l10n_*` types,
+    -- regardless of `test_stage$`.
+    _en_expected := row('AX-UNI', 'en', 'Axe University')::test_uni_l10n_en;
+    _nl_expected := row('AX-UNI', 'nl', 'Bijl Universiteit')::test_uni_l10n_nl;
+
+    if test_stage$ = 'pre-dump' then
+        insert into test_uni_l10n_en
+            (uni_abbr, name)
+        values
+            (_en_expected.uni_abbr, _en_expected.name)
+        returning
+            *
+        into
+            _en_actual
+        ;
+        update
+            test_uni_l10n_nl
+        set
+            name = _nl_expected.name
+        where
+            uni_abbr = _en_expected.uni_abbr
+        returning
+            *
+        into
+            _nl_actual
+        ;
+    elsif test_stage$ = 'post-restore' then
+        select * into _en_actual from test_uni_l10n_en where uni_abbr = _en_expected.uni_abbr;
+        select * into _nl_actual from test_uni_l10n_nl where uni_abbr = _nl_expected.uni_abbr;
+    end if;
+
+    assert _en_expected = _en_actual;
+    assert _nl_expected = _nl_actual;
+end;
+$procedure$
 ```
 
 #### Procedure: `test__l10n_table()`
