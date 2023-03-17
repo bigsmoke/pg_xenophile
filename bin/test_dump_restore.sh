@@ -149,8 +149,8 @@ $PG_BIN_DIR/psql postgres -c '\set ON_ERROR_STOP' \
     >> "$out_file" 2>&1 \
     || exit 5
 
-echo "-- createdb '$OID_NOISE_DB_NAME'" > "$out_file"
-$PG_BIN_DIR/createdb "$OID_NOISE_DB_NAME" || exit 5
+echo "-- createdb '$OID_NOISE_DB_NAME'" >> "$out_file"
+$PG_BIN_DIR/createdb "$OID_NOISE_DB_NAME" >> "$out_file" 2>&1 || exit 5
 
 echo "-- psql -f '$psql_script_file' -v 'extension_name=$extension_name' -v 'test_stage=pre-restore'" >> "$out_file"
 $PG_BIN_DIR/psql \

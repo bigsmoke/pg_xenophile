@@ -1,5 +1,7 @@
 EXTENSION = pg_xenophile
 
+SUBEXTENSION = l10n_table_dependent_extension
+
 DISTVERSION = $(shell sed -n -E "/default_version/ s/^.*'(.*)'.*$$/\1/p" $(EXTENSION).control)
 
 DATA = $(wildcard sql/$(EXTENSION)*.sql)
@@ -9,6 +11,10 @@ REGRESS = tap_tests
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+
+install: install_subextension
+install_subextension:
+	$(MAKE) -C $(SUBEXTENSION) install
 
 README.md: sql/README.sql install
 	psql --quiet postgres < $< > $@

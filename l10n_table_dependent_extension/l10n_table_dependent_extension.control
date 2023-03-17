@@ -1,0 +1,4 @@
+default_version = 'forever'
+superuser = false
+relocatable = true
+requires = 'pg_xenophile'

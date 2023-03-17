@@ -18,6 +18,7 @@ select  :'test_stage' = 'pre-dump' as in_pre_dump_stage
 \gset
 
 \set SHOW_CONTEXT 'errors'
+\set ON_ERROR_STOP
 
 \if :in_pre_restore_stage
     -- Let's generate some noise to offset the OIDs, to ensure that we're not relying on OIDs remaining the
