@@ -299,7 +299,7 @@ create trigger set_installed_extension_version_from_name
 
 --------------------------------------------------------------------------------------------------------------
 
--- Rename from `updatable_l10_view` (with missing ‘n’) to `updatable_l10_view`.
+-- Rename from `updatable_l10_view` (with missing ‘n’) to `updatable_l10n_view`.
 -- (`DROP` happens further down.)
 create function updatable_l10n_view()
     returns trigger

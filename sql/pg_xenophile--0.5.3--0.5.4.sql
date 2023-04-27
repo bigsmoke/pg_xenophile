@@ -3,7 +3,6 @@
 
 --------------------------------------------------------------------------------------------------------------
 
--- TODO: Rename this function?
 create or replace function updatable_l10_view()
     returns trigger
     set search_path from current

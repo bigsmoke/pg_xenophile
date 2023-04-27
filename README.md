@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.0
-pg_readme_generated_at: 2023-03-17 15:20:59.610055+00
-pg_readme_version: 0.6.0
+pg_extension_version: 0.7.1
+pg_readme_generated_at: 2023-04-27 15:12:10.679546+01
+pg_readme_version: 0.6.1
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -175,6 +175,16 @@ The `country` table has 6 attributes:
 
 6. `country.country_belongs_to_pg_xenophile` `boolean`
 
+   `pg_dump` will ignore rows for which this is `true`.
+
+   Make sure that this column is `false` when you add your own country.  When your
+   country is an official country according to the ISO standard, please make sure
+   that it will be included upstream in `pg_xenophile`, so that all users of the
+   extension can profit from up-to-date information.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
    - `NOT NULL`
    - `DEFAULT false`
 
@@ -206,6 +216,15 @@ The `country_postal_code_pattern` table has 8 attributes:
 
 8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
 
+   Whether or not this pattern was shipped with the `pg_xenophile` extension.
+
+   Make sure that, for your custom additions to this table, this column is
+   `false`.  Even better, though: contribute new or updated postal code patterns
+   upstream, to `pg_xenophile`, so that everybody may profit from your knowledge.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
    - `NOT NULL`
    - `DEFAULT false`
 
@@ -222,22 +241,6 @@ The `eu_country` table has 3 attributes:
 2. `eu_country.eu_membership_checked_on` `date`
 
 3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `lang`
-
-The `lang` table has 2 attributes:
-
-1. `lang.lang_code` `lang_code_alpha2`
-
-   ISO 639-1 two-letter (lowercase) language code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (lang_code)`
-
-2. `lang.lang_belongs_to_pg_xenophile` `boolean`
 
    - `NOT NULL`
    - `DEFAULT false`
@@ -271,11 +274,11 @@ types](https://www.postgresql.org/docs/current/datatype-oid.html).  Two reasons:
     to extensions are not dumped at all, except for any part exempted from this
     using the `pg_catalog.pg_extension_config_dump()` function.  For
     `l10n_table`, only the columns for which
-    `l10n_table_belongs_to_pg_xenophile = false` are included in the dump.
+    `l10n_table_belongs_to_extension_name IS NULL` are included in the dump.
 2.  OIDs of tables and other catalog objects are not guaranteed to remain the
     same between `pg_dump` and `pg_restore`.
 
-The `l10n_table` table has 13 attributes:
+The `l10n_table` table has 12 attributes:
 
 1. `l10n_table.schema_name` `name`
 
@@ -323,9 +326,7 @@ The `l10n_table` table has 13 attributes:
    - `NOT NULL`
    - `DEFAULT pg_xenophile_target_lang_codes()`
 
-11. `l10n_table.........pg.dropped.11........` `-`
-
-12. `l10n_table.l10n_table_belongs_to_extension_name` `name`
+11. `l10n_table.l10n_table_belongs_to_extension_name` `name`
 
    This column must be `NOT NULL` if the l10n table is created through extension setup scripts and its row in the meta table must thus be omitted from `pg_dump`.
 
@@ -341,7 +342,33 @@ The `l10n_table` table has 13 attributes:
    booleans.  For users, the default of `false` assures that they will lose none
    of their precious data.
 
-13. `l10n_table.l10n_table_belongs_to_extension_version` `text`
+12. `l10n_table.l10n_table_belongs_to_extension_version` `text`
+
+#### Table: `lang`
+
+The `lang` table has 2 attributes:
+
+1. `lang.lang_code` `lang_code_alpha2`
+
+   ISO 639-1 two-letter (lowercase) language code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (lang_code)`
+
+2. `lang.lang_belongs_to_pg_xenophile` `boolean`
+
+   `pg_dump` will ignore rows for which this is `true`.
+
+   Make sure that this column is `false` when you add your own language.  When
+   your language is an official language according to the ISO standard, please
+   make sure that it will be included upstream in `pg_xenophile`, so that all
+   users of the extension can profit from up-to-date information.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `lang_l10n`
 
@@ -351,7 +378,7 @@ These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigge
 
 To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
 
-The `lang_l10n` table has 6 attributes:
+The `lang_l10n` table has 5 attributes:
 
 1. `lang_l10n.lang_code` `lang_code_alpha2`
 
@@ -363,15 +390,13 @@ The `lang_l10n` table has 6 attributes:
    - `NOT NULL`
    - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
 
-3. `lang_l10n.........pg.dropped.3........` `-`
+3. `lang_l10n.l10n_columns_belong_to_extension_name` `name`
 
-4. `lang_l10n.name` `text`
+4. `lang_l10n.l10n_columns_belong_to_extension_version` `text`
+
+5. `lang_l10n.name` `text`
 
    - `NOT NULL`
-
-5. `lang_l10n.l10n_columns_belong_to_extension_name` `name`
-
-6. `lang_l10n.l10n_columns_belong_to_extension_version` `text`
 
 #### Table: `country_l10n`
 
@@ -381,7 +406,7 @@ These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigge
 
 To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
 
-The `country_l10n` table has 6 attributes:
+The `country_l10n` table has 5 attributes:
 
 1. `country_l10n.country_code` `country_code_alpha2`
 
@@ -393,15 +418,13 @@ The `country_l10n` table has 6 attributes:
    - `NOT NULL`
    - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
 
-3. `country_l10n.........pg.dropped.3........` `-`
+3. `country_l10n.l10n_columns_belong_to_extension_name` `name`
 
-4. `country_l10n.name` `text`
+4. `country_l10n.l10n_columns_belong_to_extension_version` `text`
+
+5. `country_l10n.name` `text`
 
    - `NOT NULL`
-
-5. `country_l10n.l10n_columns_belong_to_extension_name` `name`
-
-6. `country_l10n.l10n_columns_belong_to_extension_version` `text`
 
 ### Views
 
@@ -409,9 +432,8 @@ The `country_l10n` table has 6 attributes:
 
 ```sql
  SELECT lang.lang_code, lang.lang_belongs_to_pg_xenophile,
-    lang_l10n.l10n_lang_code, lang_l10n.name,
-    lang_l10n.l10n_columns_belong_to_extension_name,
-    lang_l10n.l10n_columns_belong_to_extension_version
+    lang_l10n.l10n_lang_code, lang_l10n.l10n_columns_belong_to_extension_name,
+    lang_l10n.l10n_columns_belong_to_extension_version, lang_l10n.name
    FROM lang
      LEFT JOIN lang_l10n ON lang.lang_code::text = lang_l10n.lang_code::text AND lang_l10n.l10n_lang_code::text = 'en'::text;
 ```
@@ -422,8 +444,8 @@ The `country_l10n` table has 6 attributes:
  SELECT country.country_code, country.country_code_alpha3,
     country.country_code_num, country.calling_code, country.currency_code,
     country.country_belongs_to_pg_xenophile, country_l10n.l10n_lang_code,
-    country_l10n.name, country_l10n.l10n_columns_belong_to_extension_name,
-    country_l10n.l10n_columns_belong_to_extension_version
+    country_l10n.l10n_columns_belong_to_extension_name,
+    country_l10n.l10n_columns_belong_to_extension_version, country_l10n.name
    FROM country
      LEFT JOIN country_l10n ON country.country_code::text = country_l10n.country_code::text AND country_l10n.l10n_lang_code::text = 'en'::text;
 ```
@@ -462,9 +484,7 @@ Function attributes: `STABLE`, `RETURNS NULL ON NULL INPUT`, `PARALLEL SAFE`
 
 #### Function: `l10n_table__maintain_l10n_objects()`
 
-The `l10n_table__maintain_l10n_objects()` trigger function is meant to actuate
-changes to the `l10_table` to the actual l10n tables and views tracked by that
-meta table.
+The `l10n_table__maintain_l10n_objects()` trigger function is meant to actuate changes to the `l10_table` to the actual l10n tables and views tracked by that meta table.
 
 Function return type: `trigger`
 
@@ -534,8 +554,7 @@ RETURN (COALESCE(current_setting('app_settings.i18n.base_lang_code'::text, true)
 
 #### Function: `pg_xenophile_meta_pgxn()`
 
-Returns the JSON meta data that has to go into the `META.json` file needed for
-[PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
+Returns the JSON meta data that has to go into the `META.json` file needed for PGXN—PostgreSQL Extension Network—packages.
 
 The `Makefile` includes a recipe to allow the developer to: `make META.json` to
 refresh the meta file with the function's current output, including the
@@ -550,9 +569,9 @@ Function attributes: `STABLE`
 
 #### Function: `pg_xenophile_readme()`
 
-Generates a README in Markdown format using the amazing power of the
-`pg_readme` extension.  Temporarily installs `pg_readme` if it is not already
-installed in the current database.
+Generates a README in Markdown format using the amazing power of the `pg_readme` extension.
+
+Temporarily installs `pg_readme` if it is not already installed in the current database.
 
 Function return type: `text`
 
@@ -821,12 +840,16 @@ $procedure$
 Procedure-local settings:
 
   *  `SET search_path TO xeno, public, pg_temp`
+  *  `SET client_min_messages TO WARNING`
+  *  `SET plpgsql.check_asserts TO true`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
 ```sql
 CREATE OR REPLACE PROCEDURE xeno.test__l10n_table()
  LANGUAGE plpgsql
  SET search_path TO 'xeno', 'public', 'pg_temp'
+ SET client_min_messages TO 'WARNING'
+ SET "plpgsql.check_asserts" TO 'true'
  SET "pg_readme.include_this_routine_definition" TO 'true'
 AS $procedure$
 declare
@@ -1238,9 +1261,7 @@ The following extra types have been defined _besides_ the implicit composite typ
 
 #### Domain: `currency_code`
 
-Using this domain instead of its underlying `text` type ensures that only
-uppercase, 3-letter currency codes are allowed.  It does _not_ enforce that the
-`currency_code` exists in the `currency` table.
+Using this domain instead of its underlying `text` type ensures that only uppercase, 3-letter currency codes are allowed.  It does _not_ enforce that the `currency_code` exists in the `currency` table.
 
 ```sql
 CREATE DOMAIN currency_code AS text
@@ -1249,8 +1270,7 @@ CREATE DOMAIN currency_code AS text
 
 #### Domain: `country_code_alpha2`
 
-Using this domain instead of its underlying `text` type ensures that only
-2-letter, uppercase country codes are allowed.
+Using this domain instead of its underlying `text` type ensures that only 2-letter, uppercase country codes are allowed.
 
 ```sql
 CREATE DOMAIN country_code_alpha2 AS text
