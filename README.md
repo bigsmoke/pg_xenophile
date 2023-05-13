@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.1
-pg_readme_generated_at: 2023-04-27 15:12:10.679546+01
-pg_readme_version: 0.6.1
+pg_extension_version: 0.7.2
+pg_readme_generated_at: 2023-05-13 16:23:32.858079+01
+pg_readme_version: 0.6.3
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -98,6 +98,23 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `currency`
 
@@ -224,23 +241,6 @@ The `country_postal_code_pattern` table has 8 attributes:
 
    Please note, that you will run into problems with dump/restore when you add
    records to this table from within your own dependent extension set up scripts.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
 
    - `NOT NULL`
    - `DEFAULT false`
@@ -1283,6 +1283,22 @@ CREATE DOMAIN country_code_alpha2 AS text
 CREATE DOMAIN lang_code_alpha2 AS text
   CHECK ((VALUE ~ '^[a-z]{2}$'::text));
 ```
+
+## Extension authors and contributors
+
+* [Rowan](https://www.bigsmoke.us/) originated this extension in 2022 while
+  developing the PostgreSQL backend for the [FlashMQ SaaS MQTT cloud
+  broker](https://www.flashmq.com/).  Rowan does not like to see himself as a
+  tech person or a tech writer, but, much to his chagrin, [he
+  _is_](https://blog.bigsmoke.us/category/technology). Some of his chagrin
+  about his disdain for the IT industry he poured into a book: [_Why
+  Programming Still Sucks_](https://www.whyprogrammingstillsucks.com/).  Much
+  more than a “tech bro”, he identifies as a garden gnome, fairy and ork rolled
+  into one, and his passion is really to [regreen and reenchant his
+  environment](https://sapienshabitat.com/).  One of his proudest achievements
+  is to be the third generation ecological gardener to grow the wild garden
+  around his beautiful [family holiday home in the forest of Norg, Drenthe,
+  the Netherlands](https://www.schuilplaats-norg.nl/) (available for rent!).
 
 ## Colophon
 
