@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.2
-pg_readme_generated_at: 2023-05-13 16:23:32.858079+01
-pg_readme_version: 0.6.3
+pg_extension_version: 0.7.3
+pg_readme_generated_at: 2023-05-27 12:37:04.851618+01
+pg_readme_version: 0.6.4
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -98,23 +98,6 @@ something like `i18n`.
 ### Tables
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
 
 #### Table: `currency`
 
@@ -241,6 +224,23 @@ The `country_postal_code_pattern` table has 8 attributes:
 
    Please note, that you will run into problems with dump/restore when you add
    records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
 
    - `NOT NULL`
    - `DEFAULT false`
@@ -549,7 +549,7 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_base_lang_code()
  STABLE LEAKPROOF
  SET "pg_readme.include_this_routine_definition" TO 'true'
  SET search_path TO 'xeno', 'public', 'pg_temp'
-RETURN (COALESCE(current_setting('app_settings.i18n.base_lang_code'::text, true), current_setting('pg_xenophile.base_lang_code'::text, true), 'en'::text))::lang_code_alpha2
+RETURN (COALESCE(current_setting('app.settings.i18n.base_lang_code'::text, true), current_setting('pg_xenophile.base_lang_code'::text, true), 'en'::text))::lang_code_alpha2
 ```
 
 #### Function: `pg_xenophile_meta_pgxn()`
@@ -620,7 +620,7 @@ CREATE OR REPLACE FUNCTION xeno.pg_xenophile_user_lang_code()
  STABLE LEAKPROOF
  SET "pg_readme.include_this_routine_definition" TO 'true'
  SET search_path TO 'xeno', 'public', 'pg_temp'
-RETURN (COALESCE(current_setting('app_settings.i18n.user_lang_code'::text, true), current_setting('pg_xenophile.user_lang_code'::text, true), regexp_replace(current_setting('lc_messages'::text), '^([a-z]{2}).*$'::text, ''::text), 'en'::text))::lang_code_alpha2
+RETURN (COALESCE(current_setting('app.settings.i18n.user_lang_code'::text, true), current_setting('pg_xenophile.user_lang_code'::text, true), regexp_replace(current_setting('lc_messages'::text), '^([a-z]{2}).*$'::text, ''::text), 'en'::text))::lang_code_alpha2
 ```
 
 #### Function: `set_installed_extension_version_from_name()`
