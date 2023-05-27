@@ -587,7 +587,6 @@ create function pg_xenophile_user_lang_code()
     set search_path from current
     language sql
     return coalesce(
-        -- TODO: Get the preferred (AND supported) language code from the header
         pg_catalog.current_setting('app_settings.i18n.user_lang_code', true),
         pg_catalog.current_setting('pg_xenophile.user_lang_code', true),
         regexp_replace(pg_catalog.current_setting('lc_messages'), '^([a-z]{2}).*$', '\1'),
