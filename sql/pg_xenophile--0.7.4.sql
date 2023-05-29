@@ -80,6 +80,17 @@ back to the first two letters of the `lc_messages` setting.
 
 <?pg-readme-reference?>
 
+## Missing/planned/possible features
+
+* Currently (as of version 0.7.4), only ISO 639-1 (2-letter) language codes are
+  supported.  It would be nice if at least ISO 639-2 3-letter code would be
+  supported, and possibly ISO 639-2/T and 639-2/B as well.  Even better would be
+  if [BPC 47 / RFC 5646](https://datatracker.ietf.org/doc/html/rfc5646) was
+  supported.  If I (Rowan) do change the primary language identification method,
+  I will try to do so _before_ `pg_xenophile` 1.0 is released, because
+  introducing breaking changes post-1.0 is assholish towards the couple of users
+  that might by then already depend on this extension.
+
 ## Extension authors and contributors
 
 * [Rowan](https://www.bigsmoke.us/) originated this extension in 2022 while
@@ -197,7 +208,7 @@ create or replace function pg_xenophile_meta_pgxn()
         ,'provides'
         ,('{
             "pg_xenophile": {
-                "file": "pg_xenophile--0.7.2.sql",
+                "file": "pg_xenophile--0.7.4.sql",
                 "version": "' || (
                     select
                         pg_extension.extversion
@@ -534,6 +545,21 @@ create domain lang_code_alpha2
     as text
     check (value ~ '^[a-z]{2}$');
 
+
+comment on domain lang_code_alpha2 is
+$md$ISO 639-1 two-letter (lowercase) language code.
+$md$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create domain lang_code_alhpa3
+    as text
+    check (value ~ '^[a-z]{3}$');
+
+comment on domain lang_code_alhpa3 is
+$md$ISO 639-2/T, ISO 639-2/B, or ISO 639-3 (lowercase) language code.
+$md$;
+
 --------------------------------------------------------------------------------------------------------------
 
 create table lang (
@@ -573,7 +599,7 @@ create function pg_xenophile_base_lang_code()
     set search_path from current
     language sql
     return coalesce(
-        pg_catalog.current_setting('app_settings.i18n.base_lang_code', true),
+        pg_catalog.current_setting('app.settings.i18n.base_lang_code', true),
         pg_catalog.current_setting('pg_xenophile.base_lang_code', true),
         'en'::text
     )::xeno.lang_code_alpha2;
@@ -603,7 +629,7 @@ create function pg_xenophile_user_lang_code()
     set search_path from current
     language sql
     return coalesce(
-        pg_catalog.current_setting('app_settings.i18n.user_lang_code', true),
+        pg_catalog.current_setting('app.settings.i18n.user_lang_code', true),
         pg_catalog.current_setting('pg_xenophile.user_lang_code', true),
         regexp_replace(pg_catalog.current_setting('lc_messages'), '^([a-z]{2}).*$', '\1'),
         'en'::text
@@ -657,7 +683,7 @@ table with the columns of the l10n table, filtered by the language code
 specific to that particular view.
 
 One of the reasons to manage this through a table rather than through a stored
-procedure is that a list of such enhance l10n tables needs to be kept by
+procedure is that a list of such enhanced l10n tables needs to be kept by
 `pg_xenophile` anyway: in the likely case that updates necessitate the
 upgrading of (the views and/or triggers around) these tables, the extension
 update script will know where to find everything.
@@ -2141,14 +2167,207 @@ insert into l10n_table (
     ,'pg_xenophile'
 );
 
+-- We insert English first, because we need English for the FK in the `lang_l10n` table to work.
 insert into lang_l10n_en
     (lang_code, "name", lang_belongs_to_pg_xenophile, l10n_columns_belong_to_extension_name)
 values
-    ('en', 'English', true, 'pg_xenophile'),
-    ('es', 'Spanish', true, 'pg_xenophile'),
-    ('fr', 'French', true, 'pg_xenophile'),
-    ('nl', 'Dutch', true, 'pg_xenophile'),
-    ('pt', 'Portuguese', true, 'pg_xenophile');
+    ('en', 'English', true, 'pg_xenophile')
+;
+
+insert into lang_l10n_en
+    (lang_code, "name", lang_belongs_to_pg_xenophile, l10n_columns_belong_to_extension_name)
+select
+    v.lang_code_iso_639_1
+    ,v.lang_name_en_wikipedia_primary
+    ,true
+    ,'pg_xenophile'
+from (
+    values
+        ('ab', 'Abkhazian')
+        ,('aa', 'Afar')
+        ,('af', 'Afrikaans')
+        ,('ak', 'Akan')
+        ,('sq', 'Albanian')
+        ,('am', 'Amharic')
+        ,('ar', 'Arabic')
+        ,('an', 'Aragonese')
+        ,('hy', 'Armenian')
+        ,('as', 'Assamese')
+        ,('av', 'Avaric')
+        ,('ae', 'Avestan')
+        ,('ay', 'Aymara')
+        ,('az', 'Azerbaijani')
+        ,('bm', 'Bambara')
+        ,('ba', 'Bashkir')
+        ,('eu', 'Basque')
+        ,('be', 'Belarusian')
+        ,('bn', 'Bengali')
+        ,('bi', 'Bislama')
+        ,('bs', 'Bosnian')
+        ,('br', 'Breton')
+        ,('bg', 'Bulgarian')
+        ,('my', 'Burmese')
+        ,('ca', 'Catalan')
+        ,('ch', 'Chamorro')
+        ,('ce', 'Chechen')
+        ,('ny', 'Chichewa')
+        ,('zh', 'Chinese')
+        ,('cu', 'Church Slavonic')
+        ,('cv', 'Chuvash')
+        ,('kw', 'Cornish')
+        ,('co', 'Corsican')
+        ,('cr', 'Cree')
+        ,('hr', 'Croatian')
+        ,('cs', 'Czech')
+        ,('da', 'Danish')
+        ,('dv', 'Divehi')
+        ,('nl', 'Dutch')
+        ,('dz', 'Dzongkha')
+        --,('en', 'English')
+        ,('eo', 'Esperanto')
+        ,('et', 'Estonian')
+        ,('ee', 'Ewe')
+        ,('fo', 'Faroese')
+        ,('fj', 'Fijian')
+        ,('fi', 'Finnish')
+        ,('fr', 'French')
+        ,('fy', 'Western Frisian')
+        ,('ff', 'Fulah')
+        ,('gd', 'Gaelic')
+        ,('gl', 'Galician')
+        ,('lg', 'Ganda')
+        ,('ka', 'Georgian')
+        ,('de', 'German')
+        ,('el', 'Greek')
+        ,('kl', 'Kalaallisut')
+        ,('gn', 'Guarani')
+        ,('gu', 'Gujarati')
+        ,('ht', 'Haitian')
+        ,('ha', 'Hausa')
+        ,('he', 'Hebrew')
+        ,('hz', 'Herero')
+        ,('hi', 'Hindi')
+        ,('ho', 'Hiri Motu')
+        ,('hu', 'Hungarian')
+        ,('is', 'Icelandic')
+        ,('io', 'Ido')
+        ,('ig', 'Igbo')
+        ,('id', 'Indonesian')
+        ,('ia', 'Interlingua')
+        ,('ie', 'Interlingue')
+        ,('iu', 'Inuktitut')
+        ,('ik', 'Inupiaq')
+        ,('ga', 'Irish')
+        ,('it', 'Italian')
+        ,('ja', 'Japanese')
+        ,('jv', 'Javanese')
+        ,('kn', 'Kannada')
+        ,('kr', 'Kanuri')
+        ,('ks', 'Kashmiri')
+        ,('kk', 'Kazakh')
+        ,('km', 'Central Khmer')
+        ,('ki', 'Kikuyu')
+        ,('rw', 'Kinyarwanda')
+        ,('ky', 'Kirghiz')
+        ,('kv', 'Komi')
+        ,('kg', 'Kongo')
+        ,('ko', 'Korean')
+        ,('kj', 'Kuanyama')
+        ,('ku', 'Kurdish')
+        ,('lo', 'Lao')
+        ,('la', 'Latin')
+        ,('lv', 'Latvian')
+        ,('li', 'Limburgan')
+        ,('ln', 'Lingala')
+        ,('lt', 'Lithuanian')
+        ,('lu', 'Luba-Katanga')
+        ,('lb', 'Luxembourgish')
+        ,('mk', 'Macedonian')
+        ,('mg', 'Malagasy')
+        ,('ms', 'Malay')
+        ,('ml', 'Malayalam')
+        ,('mt', 'Maltese')
+        ,('gv', 'Manx')
+        ,('mi', 'Maori')
+        ,('mr', 'Marathi')
+        ,('mh', 'Marshallese')
+        ,('mn', 'Mongolian')
+        ,('na', 'Nauru')
+        ,('nv', 'Navaho')
+        ,('nd', 'North Ndebele')
+        ,('nr', 'South Ndebele')
+        ,('ng', 'Ndonga')
+        ,('ne', 'Nepali')
+        ,('no', 'Norwegian')
+        ,('nb', 'Norwegian Bokmål')
+        ,('nn', 'Norwegian Nynorsk')
+        ,('ii', 'Sichuan Yi')
+        ,('oc', 'Occitan')
+        ,('oj', 'Ojibwa')
+        ,('or', 'Oriya')
+        ,('om', 'Oromo')
+        ,('os', 'Ossetian')
+        ,('pi', 'Pali')
+        ,('ps', 'Pashto')
+        ,('fa', 'Persian')
+        ,('pl', 'Polish')
+        ,('pt', 'Portuguese')
+        ,('pa', 'Punjabi')
+        ,('qu', 'Quechua')
+        ,('ro', 'Romanian')
+        ,('rm', 'Romansh')
+        ,('rn', 'Rundi')
+        ,('ru', 'Russian')
+        ,('se', 'Northern Sami')
+        ,('sm', 'Samoan')
+        ,('sg', 'Sango')
+        ,('sa', 'Sanskrit')
+        ,('sc', 'Sardinian')
+        ,('sr', 'Serbian')
+        ,('sn', 'Shona')
+        ,('sd', 'Sindhi')
+        ,('si', 'Sinhala')
+        ,('sk', 'Slovak')
+        ,('sl', 'Slovenian')
+        ,('so', 'Somali')
+        ,('st', 'Southern Sotho')
+        ,('es', 'Spanish')
+        ,('su', 'Sundanese')
+        ,('sw', 'Swahili')
+        ,('ss', 'Swati')
+        ,('sv', 'Swedish')
+        ,('tl', 'Tagalog')
+        ,('ty', 'Tahitian')
+        ,('tg', 'Tajik')
+        ,('ta', 'Tamil')
+        ,('tt', 'Tatar')
+        ,('te', 'Telugu')
+        ,('th', 'Thai')
+        ,('bo', 'Tibetan')
+        ,('ti', 'Tigrinya')
+        ,('to', 'Tonga')
+        ,('ts', 'Tsonga')
+        ,('tn', 'Tswana')
+        ,('tr', 'Turkish')
+        ,('tk', 'Turkmen')
+        ,('tw', 'Twi')
+        ,('ug', 'Uighur')
+        ,('uk', 'Ukrainian')
+        ,('ur', 'Urdu')
+        ,('uz', 'Uzbek')
+        ,('ve', 'Venda')
+        ,('vi', 'Vietnamese')
+        ,('vo', 'Volapük')
+        ,('wa', 'Walloon')
+        ,('cy', 'Welsh')
+        ,('wo', 'Wolof')
+        ,('xh', 'Xhosa')
+        ,('yi', 'Yiddish')
+        ,('yo', 'Yoruba')
+        ,('za', 'Zhuang')
+        ,('zu', 'Zulu')
+    ) as v (lang_code_iso_639_1, lang_name_en_wikipedia_primary)
+;
 
 --------------------------------------------------------------------------------------------------------------
 

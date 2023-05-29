@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.3
-pg_readme_generated_at: 2023-05-27 12:46:38.200778+01
+pg_extension_version: 0.7.4
+pg_readme_generated_at: 2023-05-29 12:18:20.020209+01
 pg_readme_version: 0.6.4
 ---
 
@@ -99,152 +99,6 @@ something like `i18n`.
 
 There are 8 tables that directly belong to the `pg_xenophile` extension.
 
-#### Table: `currency`
-
-The `currency` table contains the currencies known to `pg_xenophile`.
-
-The `currency` table has 5 attributes:
-
-1. `currency.currency_code` `currency_code`
-
-   `currency_code` is a 3-letter ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (currency_code)`
-
-2. `currency.currency_code_num` `text`
-
-   `currency_code` is the numeric 3-digit ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
-   - `UNIQUE (currency_code_num)`
-
-3. `currency.currency_symbol` `text`
-
-   - `NOT NULL`
-   - `CHECK (length(currency_symbol) = 1)`
-
-4. `currency.decimal_digits` `integer`
-
-   - `NOT NULL`
-   - `DEFAULT 2`
-
-5. `currency.currency_belongs_to_pg_xenophile` `boolean`
-
-   Does this currency belong to the `pg_xenophile` extension or not.
-
-   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
-   inserted by the extension user rather than the extension developer.  Instead
-   (or in addition) of adding such custom rows, please feel free to submit patches
-   with all the currencies that you wish for `pg_xenophile` to embrace.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country`
-
-The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
-
-The `country` table has 6 attributes:
-
-1. `country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-
-2. `country.country_code_alpha3` `text`
-
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
-
-   `pg_dump` will ignore rows for which this is `true`.
-
-   Make sure that this column is `false` when you add your own country.  When your
-   country is an official country according to the ISO standard, please make sure
-   that it will be included upstream in `pg_xenophile`, so that all users of the
-   extension can profit from up-to-date information.
-
-   Please note, that you will run into problems with dump/restore when you add
-   records to this table from within your own dependent extension set up scripts.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_postal_code_pattern`
-
-The `country_postal_code_pattern` table has 8 attributes:
-
-1. `country_postal_code_pattern.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
-
-   - `NOT NULL`
-
-3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
-
-4. `country_postal_code_pattern.clean_postal_code_replace` `text`
-
-5. `country_postal_code_pattern.postal_code_example` `text`
-
-   - `NOT NULL`
-
-6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
-
-7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
-
-8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
-
-   Whether or not this pattern was shipped with the `pg_xenophile` extension.
-
-   Make sure that, for your custom additions to this table, this column is
-   `false`.  Even better, though: contribute new or updated postal code patterns
-   upstream, to `pg_xenophile`, so that everybody may profit from your knowledge.
-
-   Please note, that you will run into problems with dump/restore when you add
-   records to this table from within your own dependent extension set up scripts.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `eu_country`
-
-The `eu_country` table has 3 attributes:
-
-1. `eu_country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
 #### Table: `l10n_table`
 
 The `l10n_table` table is meant to keep track and manage all the `_l10n`-suffixed tables.
@@ -259,7 +113,7 @@ table with the columns of the l10n table, filtered by the language code
 specific to that particular view.
 
 One of the reasons to manage this through a table rather than through a stored
-procedure is that a list of such enhance l10n tables needs to be kept by
+procedure is that a list of such enhanced l10n tables needs to be kept by
 `pg_xenophile` anyway: in the likely case that updates necessitate the
 upgrading of (the views and/or triggers around) these tables, the extension
 update script will know where to find everything.
@@ -425,6 +279,152 @@ The `country_l10n` table has 5 attributes:
 5. `country_l10n.name` `text`
 
    - `NOT NULL`
+
+#### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
+
+The `currency` table has 5 attributes:
+
+1. `currency.currency_code` `currency_code`
+
+   `currency_code` is a 3-letter ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (currency_code)`
+
+2. `currency.currency_code_num` `text`
+
+   `currency_code` is the numeric 3-digit ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
+   - `UNIQUE (currency_code_num)`
+
+3. `currency.currency_symbol` `text`
+
+   - `NOT NULL`
+   - `CHECK (length(currency_symbol) = 1)`
+
+4. `currency.decimal_digits` `integer`
+
+   - `NOT NULL`
+   - `DEFAULT 2`
+
+5. `currency.currency_belongs_to_pg_xenophile` `boolean`
+
+   Does this currency belong to the `pg_xenophile` extension or not.
+
+   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
+   inserted by the extension user rather than the extension developer.  Instead
+   (or in addition) of adding such custom rows, please feel free to submit patches
+   with all the currencies that you wish for `pg_xenophile` to embrace.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   `pg_dump` will ignore rows for which this is `true`.
+
+   Make sure that this column is `false` when you add your own country.  When your
+   country is an official country according to the ISO standard, please make sure
+   that it will be included upstream in `pg_xenophile`, so that all users of the
+   extension can profit from up-to-date information.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_postal_code_pattern`
+
+The `country_postal_code_pattern` table has 8 attributes:
+
+1. `country_postal_code_pattern.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
+
+   - `NOT NULL`
+
+3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
+
+4. `country_postal_code_pattern.clean_postal_code_replace` `text`
+
+5. `country_postal_code_pattern.postal_code_example` `text`
+
+   - `NOT NULL`
+
+6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
+
+7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
+
+8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   Whether or not this pattern was shipped with the `pg_xenophile` extension.
+
+   Make sure that, for your custom additions to this table, this column is
+   `false`.  Even better, though: contribute new or updated postal code patterns
+   upstream, to `pg_xenophile`, so that everybody may profit from your knowledge.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 ### Views
 
@@ -1279,10 +1279,32 @@ CREATE DOMAIN country_code_alpha2 AS text
 
 #### Domain: `lang_code_alpha2`
 
+ISO 639-1 two-letter (lowercase) language code.
+
 ```sql
 CREATE DOMAIN lang_code_alpha2 AS text
   CHECK ((VALUE ~ '^[a-z]{2}$'::text));
 ```
+
+#### Domain: `lang_code_alhpa3`
+
+ISO 639-2/T, ISO 639-2/B, or ISO 639-3 (lowercase) language code.
+
+```sql
+CREATE DOMAIN lang_code_alhpa3 AS text
+  CHECK ((VALUE ~ '^[a-z]{3}$'::text));
+```
+
+## Missing/planned/possible features
+
+* Currently (as of version 0.7.4), only ISO 639-1 (2-letter) language codes are
+  supported.  It would be nice if at least ISO 639-2 3-letter code would be
+  supported, and possibly ISO 639-2/T and 639-2/B as well.  Even better would be
+  if [BPC 47 / RFC 5646](https://datatracker.ietf.org/doc/html/rfc5646) was
+  supported.  If I (Rowan) do change the primary language identification method,
+  I will try to do so _before_ `pg_xenophile` 1.0 is released, because
+  introducing breaking changes post-1.0 is assholish towards the couple of users
+  that might by then already depend on this extension.
 
 ## Extension authors and contributors
 

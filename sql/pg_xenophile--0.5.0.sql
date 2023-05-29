@@ -65,7 +65,6 @@ back to the first two letters of the `lc_messages` setting.
 <?pg-readme-reference?>
 
 <?pg-readme-colophon?>
-
 $markdown$;
 
 --------------------------------------------------------------------------------------------------------------

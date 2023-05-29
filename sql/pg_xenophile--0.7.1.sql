@@ -2133,7 +2133,6 @@ values
     ('fr', 'French', true, 'pg_xenophile'),
     ('nl', 'Dutch', true, 'pg_xenophile'),
     ('pt', 'Portuguese', true, 'pg_xenophile');
--- TODO: Complete this lists of languages to the full, current ISO list
 
 --------------------------------------------------------------------------------------------------------------
 
