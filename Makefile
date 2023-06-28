@@ -18,7 +18,7 @@ install_subextension:
 
 # Set some environment variables for the regression tests that will be fed to `pg_regress`:
 installcheck: export EXTENSION_NAME=$(EXTENSION)
-installcheck: export EXTENSION_ENTRY_VERSIONS=$(patsubst sql/$(EXTENSION)--%.sql,%,$(wildcard sql/$(EXTENSION)--[0-99].[0-99].[0-99].sql))
+installcheck: export EXTENSION_ENTRY_VERSIONS?=$(patsubst sql/$(EXTENSION)--%.sql,%,$(wildcard sql/$(EXTENSION)--[0-99].[0-99].[0-99].sql))
 
 README.md: sql/README.sql install
 	psql --quiet postgres < $< > $@
