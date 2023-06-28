@@ -125,6 +125,7 @@ $PG_BIN_DIR/createdb || exit 5
 
 echo "-- psql -f '$psql_script_file' -v 'extension_name=$extension_name' -v 'test_stage=pre-dump'" >> "$out_file"
 $PG_BIN_DIR/psql \
+    --no-psqlrc \
     -f "$psql_script_file" \
     -v "extension_name=$extension_name" \
     -v "test_stage=pre-dump" \
@@ -144,7 +145,9 @@ rm -r "$PGDATA"
 start_pg_cluster
 
 echo "-- psql postgres -c '\\set ON_ERROR_STOP' -f <roles_dump_file>" >> "$out_file"
-$PG_BIN_DIR/psql postgres -c '\set ON_ERROR_STOP' \
+$PG_BIN_DIR/psql postgres \
+    --no-psqlrc \
+    -c '\set ON_ERROR_STOP' \
     -f <(grep -v "CREATE ROLE $PGUSER" "$roles_dump_file") \
     >> "$out_file" 2>&1 \
     || exit 5
@@ -154,6 +157,7 @@ $PG_BIN_DIR/createdb "$OID_NOISE_DB_NAME" >> "$out_file" 2>&1 || exit 5
 
 echo "-- psql -f '$psql_script_file' -v 'extension_name=$extension_name' -v 'test_stage=pre-restore'" >> "$out_file"
 $PG_BIN_DIR/psql \
+    --no-psqlrc \
     -f "$psql_script_file" \
     -v "extension_name=$extension_name" \
     -v "test_stage=pre-restore" \
@@ -165,6 +169,7 @@ $PG_BIN_DIR/pg_restore --exit-on-error --create --dbname postgres "$dump_file" >
 
 echo "-- psql -f '$psql_script_file' -v 'extension_name=$extension_name' -v 'test_stage=post-restore'" >> "$out_file"
 $PG_BIN_DIR/psql \
+    --no-psqlrc \
     -f "$psql_script_file" \
     -v "extension_name=$extension_name" \
     -v "test_stage=post-restore" \
