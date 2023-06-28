@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
 pg_extension_version: 0.7.5
-pg_readme_generated_at: 2023-06-28 12:50:08.475794+01
+pg_readme_generated_at: 2023-06-28 23:46:18.274087+01
 pg_readme_version: 0.6.4
 ---
 
@@ -1196,11 +1196,25 @@ begin
                 'Default should have propegated from the l10n table to view.';
         end add_base_column_with_default_value;
 
+        <<l10n_table_rename_attempt>>
+        begin
+            alter table test_uni_l10n rename to test_university_l10n;
+            raise assert_failure using
+                message = 'Directly renaming the l10n table should be impossible.';
+        exception
+            when integrity_constraint_violation then
+        end l10n_table_rename_attempt;
+
+        <<base_table_rename>>
+        begin
+            alter table test_uni rename to test_university;
+        end base_table_rename;
+
         <<drop_base_table>>
         begin
-            drop table test_uni cascade;
+            drop table test_university cascade;
 
-            assert not exists (select from l10n_table where base_table_name = 'test_uni');
+            assert not exists (select from l10n_table where base_table_name = 'test_university');
 
             raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
         exception
@@ -1209,9 +1223,9 @@ begin
     end trigger_alter_table_events;
 
     -- DELETE-ing the meta info for our l10n table should cascade cleanly, without crashing.
-    delete from l10n_table where base_table_regclass = 'test_uni'::regclass;
+    delete from l10n_table where base_table_regclass = 'test_university'::regclass;
 
-    assert to_regclass('test_uni_l10n') is null,
+    assert to_regclass('test_university_l10n') is null,
         'The actual `_l10n` table should have been removed when deleting the meta row from `l10n_table`.';
 
     <<insert_natural_key>>

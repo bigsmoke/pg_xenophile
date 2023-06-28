@@ -1060,6 +1060,30 @@ create function l10n_table_with_fresh_ddl(inout l10n_table)
     language plpgsql
     as $$
 begin
+    select
+        pg_namespace.nspname
+        ,pg_class.relname
+    into
+        $1.schema_name
+        ,$1.base_table_name
+    from
+        pg_catalog.pg_class
+    inner join
+        pg_catalog.pg_namespace
+        on pg_namespace.oid = pg_class.relnamespace
+    where
+        pg_class.oid = ($1).base_table_regclass
+    ;
+
+    $1.l10n_table_name := (
+        select
+            pg_class.relname
+        from
+            pg_catalog.pg_class
+        where
+            pg_class.oid = ($1).l10n_table_regclass
+    );
+
     $1.base_column_definitions := (
         select
             array_agg(
@@ -1144,7 +1168,7 @@ $md$;
 
 --------------------------------------------------------------------------------------------------------------
 
-create or replace function l10n_table__maintain_l10n_objects()
+create function l10n_table__maintain_l10n_objects()
     returns trigger
     set search_path from current
     set pg_xenophile.in_l10n_table_row_trigger to true
@@ -1196,11 +1220,7 @@ begin
     end if;
 
     if _copying then
-        NEW.l10n_table_regclass := (NEW.schema_name || '.' || NEW.l10n_table_name)::regclass;
-        NEW.base_table_regclass := (NEW.schema_name || '.' || NEW.base_table_name)::regclass;
-
         set pg_xenophile.pg_restore_seems_active to true;
-
         return NEW;
     end if;
 
@@ -1230,13 +1250,34 @@ begin
             NEW.base_column_definitions != OLD.base_column_definitions
             or NEW.l10n_column_definitions != OLD.l10n_column_definitions
             or NEW.l10n_table_constraint_definitions != OLD.l10n_table_constraint_definitions
+            or NEW.base_table_name != OLD.base_table_name
+            or NEW.l10n_table_name != OLD.l10n_table_name
+            or NEW.schema_name != OLD.schema_name
         )
     then
         raise integrity_constraint_violation
-            using message = 'After the initial `INSERT`, column and constraint definitions should not be'
-                ' altered manually, only via `ALTER TABLE` statements, that will propagate via the'
-                ' `l10n_table__track_alter_table_events` event trigger.';
-            -- Feel free to implement support for this if this causes you discomfort.
+            using message = 'After the initial `INSERT`, column and constraint definitions, as well as'
+                ' table names, should not be altered directly in this table, only via `ALTER TABLE`'
+                ' statements, that will propagate' ' via the `l10n_table__track_alter_table_events`'
+                ' event trigger.';
+            -- NOTE: Feel free to implement support for this if this causes you discomfort.
+    elsif coalesce(
+            nullif(current_setting('pg_xenophile.in_l10n_table_event_trigger', true), ''),
+            'false'
+        )::bool
+        and tg_op = 'UPDATE'
+        and NEW.l10n_table_name != OLD.l10n_table_name
+    then
+        raise integrity_constraint_violation using
+            message = format(
+                'You cannot `ALTER %I.%I RENAME TO %I` directly.'
+                ,OLD.schema_name, OLD.l10n_table_name, NEW.l10n_table_name
+            )
+            ,hint = format(
+                'To change the name of `%I.%I`, change the name of its base table `%I` instead.'
+                ' The `_l10n` table will then be automatically also renamed.'
+                ,OLD.schema_name, OLD.l10n_table_name, OLD.base_table_name
+            );
     end if;
 
     if tg_op in ('INSERT', 'UPDATE') then
@@ -1412,6 +1453,15 @@ $markdown$ $ddl$;
             || quote_ident(OLD.schema_name) || '.' || quote_ident(_extraneous_view);
     end loop;
 
+    if NEW.l10n_table_name != OLD.l10n_table_name then
+        raise debug 'Renaming l10n table `%` to `%`.', OLD.l10n_table_regclass, NEW.l10n_table_name;
+        execute format('ALTER TABLE %s RENAME TO %I', OLD.l10n_table_regclass, NEW.l10n_table_name);
+    end if;
+
+    if NEW.schema_name != OLD.schema_name then
+        execute format('ALTER TABLE %s SET SCHEMA TO %I', OLD.l10n_table_regclass, NEW.schema_name);
+    end if;
+
     raise debug 'Missing l10n views to create: %', _l10n_views_to_create;
     foreach _missing_view in array _l10n_views_to_create
     loop
@@ -1464,7 +1514,7 @@ select pg_catalog.pg_extension_config_dump(
 
 --------------------------------------------------------------------------------------------------------------
 
-create or replace function l10n_table__track_alter_table_events()
+create function l10n_table__track_alter_table_events()
     returns event_trigger
     security definer
     set search_path from current
@@ -1485,6 +1535,15 @@ begin
         return;
     end if;
 
+    if coalesce(
+            nullif(current_setting('pg_xenophile.in_l10n_table_row_trigger', true), '')
+            ,'false'
+        )::bool
+    then
+        -- We are already responding to a `UPDATE` to the row, so let's not re-`ALTER` the table.
+        return;
+    end if;
+
     for
         _ddl_command
     in select
@@ -1502,23 +1561,42 @@ begin
                 or l10n_table.l10n_table_regclass = ddl_cmd.objid
         )
     loop
-        update  l10n_table
-        set     base_column_definitions =  (
-                    select  base_column_definitions
-                    from    l10n_table_with_fresh_ddl(l10n_table.*) as fresh
-                )
-        where   base_table_regclass = _ddl_command.objid
+        update
+            l10n_table
+        set
+            (
+                schema_name
+                ,base_table_name
+                ,base_column_definitions
+            ) =  (
+                select
+                    schema_name
+                    ,base_table_name
+                    ,base_column_definitions
+                from
+                    l10n_table_with_fresh_ddl(l10n_table.*) as fresh
+            )
+        where
+            base_table_regclass = _ddl_command.objid
         ;
 
-        update  l10n_table
-        set     (l10n_table_constraint_definitions, l10n_column_definitions)
-                =  (
-                    select
-                        l10n_table_constraint_definitions
-                        ,l10n_column_definitions
-                    from
-                        l10n_table_with_fresh_ddl(l10n_table.*) as fresh
-                )
+        update
+            l10n_table
+        set
+            (
+                schema_name
+                ,l10n_table_name
+                ,l10n_table_constraint_definitions
+                ,l10n_column_definitions
+            ) =  (
+                select
+                    schema_name
+                    ,l10n_table_name
+                    ,l10n_table_constraint_definitions
+                    ,l10n_column_definitions
+                from
+                    l10n_table_with_fresh_ddl(l10n_table.*) as fresh
+            )
         where
             l10n_table_regclass = _ddl_command.objid
         ;
@@ -1593,7 +1671,7 @@ create event trigger l10n_table__track_drop_table_events
 
 --------------------------------------------------------------------------------------------------------------
 
-create or replace procedure test__l10n_table()
+create procedure test__l10n_table()
     set search_path from current
     set client_min_messages to 'WARNING'
     set plpgsql.check_asserts to true
@@ -1930,11 +2008,25 @@ begin
                 'Default should have propegated from the l10n table to view.';
         end add_base_column_with_default_value;
 
+        <<l10n_table_rename_attempt>>
+        begin
+            alter table test_uni_l10n rename to test_university_l10n;
+            raise assert_failure using
+                message = 'Directly renaming the l10n table should be impossible.';
+        exception
+            when integrity_constraint_violation then
+        end l10n_table_rename_attempt;
+
+        <<base_table_rename>>
+        begin
+            alter table test_uni rename to test_university;
+        end base_table_rename;
+
         <<drop_base_table>>
         begin
-            drop table test_uni cascade;
+            drop table test_university cascade;
 
-            assert not exists (select from l10n_table where base_table_name = 'test_uni');
+            assert not exists (select from l10n_table where base_table_name = 'test_university');
 
             raise transaction_rollback;  -- I could have used any error code, but this one seemed to fit best.
         exception
@@ -1943,9 +2035,9 @@ begin
     end trigger_alter_table_events;
 
     -- DELETE-ing the meta info for our l10n table should cascade cleanly, without crashing.
-    delete from l10n_table where base_table_regclass = 'test_uni'::regclass;
+    delete from l10n_table where base_table_regclass = 'test_university'::regclass;
 
-    assert to_regclass('test_uni_l10n') is null,
+    assert to_regclass('test_university_l10n') is null,
         'The actual `_l10n` table should have been removed when deleting the meta row from `l10n_table`.';
 
     <<insert_natural_key>>
