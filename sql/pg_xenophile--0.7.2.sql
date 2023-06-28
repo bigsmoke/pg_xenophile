@@ -676,7 +676,6 @@ types](https://www.postgresql.org/docs/current/datatype-oid.html).  Two reasons:
 2.  OIDs of tables and other catalog objects are not guaranteed to remain the
     same between `pg_dump` and `pg_restore`.
 $md$;
--- TODO: Correct explanation of `pg_dump` OID behaviour
 
 comment on column l10n_table.l10n_table_belongs_to_extension_name is
 $md$This column must be `NOT NULL` if the l10n table is created through extension setup scripts and its row in the meta table must thus be omitted from `pg_dump`.

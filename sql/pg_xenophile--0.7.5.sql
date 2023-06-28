@@ -208,7 +208,7 @@ create or replace function pg_xenophile_meta_pgxn()
         ,'provides'
         ,('{
             "pg_xenophile": {
-                "file": "pg_xenophile--0.7.4.sql",
+                "file": "pg_xenophile--0.7.5.sql",
                 "version": "' || (
                     select
                         pg_extension.extversion
@@ -687,20 +687,32 @@ procedure is that a list of such enhanced l10n tables needs to be kept by
 `pg_xenophile` anyway: in the likely case that updates necessitate the
 upgrading of (the views and/or triggers around) these tables, the extension
 update script will know where to find everything.
+$md$;
 
-It may not immediately be obvious why, besides the `base_table_regclass` and
-the `l10n_table_regclass` columns, `schema_name`, `base_table_name` and
-`l10n_table_name` also exist.  After all, PostgreSQL has some very comfortable
-magic surrounding `regclass` and related [object identifier
-types](https://www.postgresql.org/docs/current/datatype-oid.html).  Two reasons:
+comment on column l10n_table.base_table_regclass is
+$md$The OID of the base table.
 
-1.  Even though `pg_dump` has the ability to dump OIDs, tables belonging
-    to extensions are not dumped at all, except for any part exempted from this
-    using the `pg_catalog.pg_extension_config_dump()` function.  For
-    `l10n_table`, only the columns for which
-    `l10n_table_belongs_to_extension_name IS NULL` are included in the dump.
-2.  OIDs of tables and other catalog objects are not guaranteed to remain the
-    same between `pg_dump` and `pg_restore`.
+Because [`regclass`](https://www.postgresql.org/docs/current/datatype-oid.html)
+is used for this column's type, rather than the ‘raw’ `oid` type, its `text`
+representation dumped by `pg_dump` will be the (schema-qualified) table name
+rather than the OID number.
+
+That the canonical string representation of `regclass` guarantees
+`pg_dump`/`pg_restore` consistency is verified by the `make test_dump_restore`
+target.
+$md$;
+
+comment on column l10n_table.l10n_table_regclass is
+$md$The OID of the l10n table.
+
+Because [`regclass`](https://www.postgresql.org/docs/current/datatype-oid.html)
+is used for this column's type, rather than the ‘raw’ `oid` type, its `text`
+representation dumped by `pg_dump` will be the (schema-qualified) table name
+rather than the OID number.
+
+That the canonical string representation of `regclass` guarantees
+`pg_dump`/`pg_restore` consistency is verified by the `make test_dump_restore`
+target.
 $md$;
 
 comment on column l10n_table.l10n_table_belongs_to_extension_name is
@@ -1030,11 +1042,21 @@ begin
 end;
 $$;
 
+comment on procedure create_l10n_view is
+$md$Create a language code-suffixed view for a given translated table.
+
+The reason that `create_l10n_view()` is a separate routine and not part of the
+`l10n_table__maintain_l10n_objects()` trigger function is that you may have a
+requirement to _not_ make l10n views for each of a l10n table's target
+languages and instead prefer to create temporary views on an as-needed basis
+(by passing the `temp$ => true` parameter).
+$md$;
+
 --------------------------------------------------------------------------------------------------------------
 
 create function l10n_table_with_fresh_ddl(inout l10n_table)
     stable
-    set search_path from current
+    parallel safe
     language plpgsql
     as $$
 begin
@@ -1115,6 +1137,10 @@ begin
     );
 end;
 $$;
+
+comment on function l10n_table_with_fresh_ddl(l10n_table) is
+$md$Return the given `l10n_table` record, refreshed with data from the current schema.
+$md$;
 
 --------------------------------------------------------------------------------------------------------------
 

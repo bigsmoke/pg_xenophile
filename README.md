@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.4
-pg_readme_generated_at: 2023-05-29 12:18:20.020209+01
+pg_extension_version: 0.7.5
+pg_readme_generated_at: 2023-06-28 12:50:08.475794+01
 pg_readme_version: 0.6.4
 ---
 
@@ -118,20 +118,6 @@ procedure is that a list of such enhanced l10n tables needs to be kept by
 upgrading of (the views and/or triggers around) these tables, the extension
 update script will know where to find everything.
 
-It may not immediately be obvious why, besides the `base_table_regclass` and
-the `l10n_table_regclass` columns, `schema_name`, `base_table_name` and
-`l10n_table_name` also exist.  After all, PostgreSQL has some very comfortable
-magic surrounding `regclass` and related [object identifier
-types](https://www.postgresql.org/docs/current/datatype-oid.html).  Two reasons:
-
-1.  Even though `pg_dump` has the ability to dump OIDs, tables belonging
-    to extensions are not dumped at all, except for any part exempted from this
-    using the `pg_catalog.pg_extension_config_dump()` function.  For
-    `l10n_table`, only the columns for which
-    `l10n_table_belongs_to_extension_name IS NULL` are included in the dump.
-2.  OIDs of tables and other catalog objects are not guaranteed to remain the
-    same between `pg_dump` and `pg_restore`.
-
 The `l10n_table` table has 12 attributes:
 
 1. `l10n_table.schema_name` `name`
@@ -145,6 +131,17 @@ The `l10n_table` table has 12 attributes:
 
 3. `l10n_table.base_table_regclass` `regclass`
 
+   The OID of the base table.
+
+   Because [`regclass`](https://www.postgresql.org/docs/current/datatype-oid.html)
+   is used for this column's type, rather than the ‘raw’ `oid` type, its `text`
+   representation dumped by `pg_dump` will be the (schema-qualified) table name
+   rather than the OID number.
+
+   That the canonical string representation of `regclass` guarantees
+   `pg_dump`/`pg_restore` consistency is verified by the `make test_dump_restore`
+   target.
+
    - `NOT NULL`
    - `PRIMARY KEY (base_table_regclass)`
 
@@ -157,6 +154,17 @@ The `l10n_table` table has 12 attributes:
    - `NOT NULL`
 
 6. `l10n_table.l10n_table_regclass` `regclass`
+
+   The OID of the l10n table.
+
+   Because [`regclass`](https://www.postgresql.org/docs/current/datatype-oid.html)
+   is used for this column's type, rather than the ‘raw’ `oid` type, its `text`
+   representation dumped by `pg_dump` will be the (schema-qualified) table name
+   rather than the OID number.
+
+   That the canonical string representation of `regclass` guarantees
+   `pg_dump`/`pg_restore` consistency is verified by the `make test_dump_restore`
+   target.
 
    - `NOT NULL`
    - `UNIQUE (l10n_table_regclass)`
@@ -454,6 +462,14 @@ The `eu_country` table has 3 attributes:
 
 #### Procedure: `create_l10n_view (name, name, name, lang_code_alpha2, boolean)`
 
+Create a language code-suffixed view for a given translated table.
+
+The reason that `create_l10n_view()` is a separate routine and not part of the
+`l10n_table__maintain_l10n_objects()` trigger function is that you may have a
+requirement to _not_ make l10n views for each of a l10n table's target
+languages and instead prefer to create temporary views on an as-needed basis
+(by passing the `temp$ => true` parameter).
+
 Procedure arguments:
 
 | Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
@@ -517,6 +533,8 @@ Function-local settings:
 
 #### Function: `l10n_table_with_fresh_ddl (l10n_table)`
 
+Return the given `l10n_table` record, refreshed with data from the current schema.
+
 Function arguments:
 
 | Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
@@ -525,11 +543,7 @@ Function arguments:
 
 Function return type: `l10n_table`
 
-Function attributes: `STABLE`
-
-Function-local settings:
-
-  *  `SET search_path TO xeno, public, pg_temp`
+Function attributes: `STABLE`, `PARALLEL SAFE`
 
 #### Function: `pg_xenophile_base_lang_code()`
 
