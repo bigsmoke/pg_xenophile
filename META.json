@@ -21,13 +21,13 @@
             }
         }
     },
-    "version": "0.7.5",
+    "version": "0.8.0",
     "abstract": "More than the bare necessities for i18n.",
     "provides": {
         "pg_xenophile": {
-            "file": "pg_xenophile--0.7.5.sql",
+            "file": "pg_xenophile--0.8.0.sql",
             "docfile": "README.md",
-            "version": "0.7.5"
+            "version": "0.8.0"
         }
     },
     "meta-spec": {
