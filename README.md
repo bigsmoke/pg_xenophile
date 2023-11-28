@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.7.5
-pg_readme_generated_at: 2023-06-28 23:46:18.274087+01
-pg_readme_version: 0.6.4
+pg_extension_version: 0.8.1
+pg_readme_generated_at: 2023-11-28 18:06:25.96171+00
+pg_readme_version: 0.6.5
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -97,7 +97,35 @@ something like `i18n`.
 
 ### Tables
 
-There are 8 tables that directly belong to the `pg_xenophile` extension.
+There are 11 tables that directly belong to the `pg_xenophile` extension.
+
+#### Table: `country_subdivision_type`
+
+ The handle for the type of entity a subdivision is an identifier for the subdivision type, fe 'state', 'district' etc.
+
+The `country_subdivision_type` table has 1 attributes:
+
+1. `country_subdivision_type.subdivision_type_handle` `text`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (subdivision_type_handle)`
+
+#### Table: `eu_country`
+
+The `eu_country` table has 3 attributes:
+
+1. `eu_country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `eu_country.eu_membership_checked_on` `date`
+
+3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `l10n_table`
 
@@ -288,6 +316,34 @@ The `country_l10n` table has 5 attributes:
 
    - `NOT NULL`
 
+#### Table: `country_subdivision_l10n`
+
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country_subdivision`) referenced by the foreign key (that doubles as primary key) on `country_subdivision_l10n`.  When any `ALTER TABLE country_subdivision_l10n` or `ALTER TABLE country_subdivision` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country_subdivision` to `country_subdivision_l10n` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
+The `country_subdivision_l10n` table has 5 attributes:
+
+1. `country_subdivision_l10n.subdivision_code` `country_subdivision_code`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (subdivision_code) REFERENCES country_subdivision(subdivision_code) ON UPDATE CASCADE ON DELETE CASCADE`
+
+2. `country_subdivision_l10n.l10n_lang_code` `lang_code_alpha2`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
+
+3. `country_subdivision_l10n.l10n_columns_belong_to_extension_name` `name`
+
+4. `country_subdivision_l10n.l10n_columns_belong_to_extension_version` `text`
+
+5. `country_subdivision_l10n.name` `text`
+
+   - `NOT NULL`
+
 #### Table: `currency`
 
 The `currency` table contains the currencies known to `pg_xenophile`.
@@ -417,22 +473,32 @@ The `country_postal_code_pattern` table has 8 attributes:
    - `NOT NULL`
    - `DEFAULT false`
 
-#### Table: `eu_country`
+#### Table: `country_subdivision`
 
-The `eu_country` table has 3 attributes:
+- *subdivision_code* [ISO 3166-2](https://www.iso.org/glossary-for-iso-3166.html) country subdivision code
+- *country_code* [ISO 3166-1](https://www.iso.org/glossary-for-iso-3166.html) country code
+- *subdivision_postal_abbreviation_code* the second part of country subdivision code
 
-1. `eu_country.country_code` `country_code_alpha2`
+The `country_subdivision` table has 4 attributes:
+
+1. `country_subdivision.subdivision_code` `country_subdivision_code`
 
    - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
+   - `PRIMARY KEY (subdivision_code)`
+
+2. `country_subdivision.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
    - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
 
-2. `eu_country.eu_membership_checked_on` `date`
-
-3. `eu_country.eu_country_belongs_to_pg_xenophile` `boolean`
+3. `country_subdivision.subdivision_postal_abbreviation_code` `country_subdivision_postal_abbreviation_code`
 
    - `NOT NULL`
-   - `DEFAULT false`
+
+4. `country_subdivision.subdivision_type_handle` `text`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (subdivision_type_handle) REFERENCES country_subdivision_type(subdivision_type_handle)`
 
 ### Views
 
@@ -456,6 +522,20 @@ The `eu_country` table has 3 attributes:
     country_l10n.l10n_columns_belong_to_extension_version, country_l10n.name
    FROM country
      LEFT JOIN country_l10n ON country.country_code::text = country_l10n.country_code::text AND country_l10n.l10n_lang_code::text = 'en'::text;
+```
+
+#### View: `country_subdivision_l10n_en`
+
+```sql
+ SELECT country_subdivision.subdivision_code, country_subdivision.country_code,
+    country_subdivision.subdivision_postal_abbreviation_code,
+    country_subdivision.subdivision_type_handle,
+    country_subdivision_l10n.l10n_lang_code,
+    country_subdivision_l10n.l10n_columns_belong_to_extension_name,
+    country_subdivision_l10n.l10n_columns_belong_to_extension_version,
+    country_subdivision_l10n.name
+   FROM country_subdivision
+     LEFT JOIN country_subdivision_l10n ON country_subdivision.subdivision_code::text = country_subdivision_l10n.subdivision_code::text AND country_subdivision_l10n.l10n_lang_code::text = 'en'::text;
 ```
 
 ### Routines
@@ -1303,6 +1383,24 @@ Using this domain instead of its underlying `text` type ensures that only 2-lett
 ```sql
 CREATE DOMAIN country_code_alpha2 AS text
   CHECK ((VALUE ~ '^[A-Z]{2}$'::text));
+```
+
+#### Domain: `country_subdivision_code`
+
+Using this domain instead of its underlying `text` type ensures that only [ISO 3166-2](https://www.iso.org/glossary-for-iso-3166.html) country subdivision codes are allowed with first 2 alpha2 characters, followed by a dash and 1 to 3 alphanumeric characters. For example, 'AB-A2B' would be allowed, as well as 'AB-1'.
+
+```sql
+CREATE DOMAIN country_subdivision_code AS text
+  CHECK ((VALUE ~ '^[A-Z]{2}-[A-Z0-9]{1,3}$'::text));
+```
+
+#### Domain: `country_subdivision_postal_abbreviation_code`
+
+Using this domain instead of its underlying `text` type ensures that only country subdivision postal abbreviation codes with 1 to 3 alphanumeric characters are allowed. This follows the format of the second section of [ISO 3166-2](https://www.iso.org/glossary-for-iso-3166.html) subdivision codes.
+
+```sql
+CREATE DOMAIN country_subdivision_postal_abbreviation_code AS text
+  CHECK ((VALUE ~ '^[A-Z0-9]{1,3}$'::text));
 ```
 
 #### Domain: `lang_code_alpha2`
