@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_xenophile
-pg_extension_version: 0.8.1
-pg_readme_generated_at: 2023-11-28 18:06:25.96171+00
-pg_readme_version: 0.6.5
+pg_extension_version: 0.8.2
+pg_readme_generated_at: 2024-02-22 10:49:14.986604+00
+pg_readme_version: 0.6.6
 ---
 
 # `pg_xenophile` PostgreSQL extension
@@ -99,6 +99,175 @@ something like `i18n`.
 
 There are 11 tables that directly belong to the `pg_xenophile` extension.
 
+#### Table: `country`
+
+The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
+
+The `country` table has 6 attributes:
+
+1. `country.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+
+2. `country.country_code_alpha3` `text`
+
+   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
+   - `UNIQUE (country_code_alpha3)`
+
+3. `country.country_code_num` `text`
+
+   - `NOT NULL`
+   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
+
+4. `country.calling_code` `integer`
+
+   - `NOT NULL`
+
+5. `country.currency_code` `text`
+
+   - `NOT NULL`
+   - `DEFAULT 'EUR'::text`
+   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
+
+6. `country.country_belongs_to_pg_xenophile` `boolean`
+
+   `pg_dump` will ignore rows for which this is `true`.
+
+   Make sure that this column is `false` when you add your own country.  When your
+   country is an official country according to the ISO standard, please make sure
+   that it will be included upstream in `pg_xenophile`, so that all users of the
+   extension can profit from up-to-date information.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_l10n`
+
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country`) referenced by the foreign key (that doubles as primary key) on `country_l10n`.  When any `ALTER TABLE country_l10n` or `ALTER TABLE country` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country` to `country_l10n` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
+The `country_l10n` table has 5 attributes:
+
+1. `country_l10n.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code) ON UPDATE CASCADE ON DELETE CASCADE`
+
+2. `country_l10n.l10n_lang_code` `lang_code_alpha2`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
+
+3. `country_l10n.l10n_columns_belong_to_extension_name` `name`
+
+4. `country_l10n.l10n_columns_belong_to_extension_version` `text`
+
+5. `country_l10n.name` `text`
+
+   - `NOT NULL`
+
+#### Table: `country_postal_code_pattern`
+
+The `country_postal_code_pattern` table has 8 attributes:
+
+1. `country_postal_code_pattern.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (country_code)`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
+
+   - `NOT NULL`
+
+3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
+
+4. `country_postal_code_pattern.clean_postal_code_replace` `text`
+
+5. `country_postal_code_pattern.postal_code_example` `text`
+
+   - `NOT NULL`
+
+6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
+
+7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
+
+8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
+
+   Whether or not this pattern was shipped with the `pg_xenophile` extension.
+
+   Make sure that, for your custom additions to this table, this column is
+   `false`.  Even better, though: contribute new or updated postal code patterns
+   upstream, to `pg_xenophile`, so that everybody may profit from your knowledge.
+
+   Please note, that you will run into problems with dump/restore when you add
+   records to this table from within your own dependent extension set up scripts.
+
+   - `NOT NULL`
+   - `DEFAULT false`
+
+#### Table: `country_subdivision`
+
+- *subdivision_code* [ISO 3166-2](https://www.iso.org/glossary-for-iso-3166.html) country subdivision code
+- *country_code* [ISO 3166-1](https://www.iso.org/glossary-for-iso-3166.html) country code
+- *subdivision_postal_abbreviation_code* the second part of country subdivision code
+
+The `country_subdivision` table has 4 attributes:
+
+1. `country_subdivision.subdivision_code` `country_subdivision_code`
+
+   - `NOT NULL`
+   - `PRIMARY KEY (subdivision_code)`
+
+2. `country_subdivision.country_code` `country_code_alpha2`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
+
+3. `country_subdivision.subdivision_postal_abbreviation_code` `country_subdivision_postal_abbreviation_code`
+
+   - `NOT NULL`
+
+4. `country_subdivision.subdivision_type_handle` `text`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (subdivision_type_handle) REFERENCES country_subdivision_type(subdivision_type_handle)`
+
+#### Table: `country_subdivision_l10n`
+
+This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country_subdivision`) referenced by the foreign key (that doubles as primary key) on `country_subdivision_l10n`.  When any `ALTER TABLE country_subdivision_l10n` or `ALTER TABLE country_subdivision` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
+
+These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country_subdivision` to `country_subdivision_l10n` are kept up-to-date with the columns in these tables.
+
+To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
+
+The `country_subdivision_l10n` table has 5 attributes:
+
+1. `country_subdivision_l10n.subdivision_code` `country_subdivision_code`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (subdivision_code) REFERENCES country_subdivision(subdivision_code) ON UPDATE CASCADE ON DELETE CASCADE`
+
+2. `country_subdivision_l10n.l10n_lang_code` `lang_code_alpha2`
+
+   - `NOT NULL`
+   - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
+
+3. `country_subdivision_l10n.l10n_columns_belong_to_extension_name` `name`
+
+4. `country_subdivision_l10n.l10n_columns_belong_to_extension_version` `text`
+
+5. `country_subdivision_l10n.name` `text`
+
+   - `NOT NULL`
+
 #### Table: `country_subdivision_type`
 
  The handle for the type of entity a subdivision is an identifier for the subdivision type, fe 'state', 'district' etc.
@@ -109,6 +278,49 @@ The `country_subdivision_type` table has 1 attributes:
 
    - `NOT NULL`
    - `PRIMARY KEY (subdivision_type_handle)`
+
+#### Table: `currency`
+
+The `currency` table contains the currencies known to `pg_xenophile`.
+
+The `currency` table has 5 attributes:
+
+1. `currency.currency_code` `currency_code`
+
+   `currency_code` is a 3-letter ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `PRIMARY KEY (currency_code)`
+
+2. `currency.currency_code_num` `text`
+
+   `currency_code` is the numeric 3-digit ISO 4217 currency code.
+
+   - `NOT NULL`
+   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
+   - `UNIQUE (currency_code_num)`
+
+3. `currency.currency_symbol` `text`
+
+   - `NOT NULL`
+   - `CHECK (length(currency_symbol) = 1)`
+
+4. `currency.decimal_digits` `integer`
+
+   - `NOT NULL`
+   - `DEFAULT 2`
+
+5. `currency.currency_belongs_to_pg_xenophile` `boolean`
+
+   Does this currency belong to the `pg_xenophile` extension or not.
+
+   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
+   inserted by the extension user rather than the extension developer.  Instead
+   (or in addition) of adding such custom rows, please feel free to submit patches
+   with all the currencies that you wish for `pg_xenophile` to embrace.
+
+   - `NOT NULL`
+   - `DEFAULT false`
 
 #### Table: `eu_country`
 
@@ -287,218 +499,6 @@ The `lang_l10n` table has 5 attributes:
 5. `lang_l10n.name` `text`
 
    - `NOT NULL`
-
-#### Table: `country_l10n`
-
-This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country`) referenced by the foreign key (that doubles as primary key) on `country_l10n`.  When any `ALTER TABLE country_l10n` or `ALTER TABLE country` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
-
-These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country` to `country_l10n` are kept up-to-date with the columns in these tables.
-
-To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
-
-The `country_l10n` table has 5 attributes:
-
-1. `country_l10n.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code) ON UPDATE CASCADE ON DELETE CASCADE`
-
-2. `country_l10n.l10n_lang_code` `lang_code_alpha2`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
-
-3. `country_l10n.l10n_columns_belong_to_extension_name` `name`
-
-4. `country_l10n.l10n_columns_belong_to_extension_version` `text`
-
-5. `country_l10n.name` `text`
-
-   - `NOT NULL`
-
-#### Table: `country_subdivision_l10n`
-
-This table is managed by the `pg_xenophile` extension, which has delegated its creation to the `maintain_l10n_objects` trigger on the `l10n_table` table.  To alter this table, just `ALTER` it as you normally would.  The `l10n_table__track_alter_table_events` event trigger will detect such changes, as well as changes to the base table (`country_subdivision`) referenced by the foreign key (that doubles as primary key) on `country_subdivision_l10n`.  When any `ALTER TABLE country_subdivision_l10n` or `ALTER TABLE country_subdivision` events are detected, `l10n_table`  will be updated—the `base_column_definitions`, `l10n_column_definitions` and `l10n_table_constraint_definitions` columns—with the latest information from the `pg_catalog`.
-
-These changes to `l10n_table` in turn trigger the `maintain_l10n_objects` trigger, which ensures that the language-specific convenience views that (left) join `country_subdivision` to `country_subdivision_l10n` are kept up-to-date with the columns in these tables.
-
-To drop this table, either just `DROP TABLE` it (and the `l10n_table__track_drop_table_events` will take care of the book-keeping or delete its bookkeeping row from `l10n_table`.
-
-The `country_subdivision_l10n` table has 5 attributes:
-
-1. `country_subdivision_l10n.subdivision_code` `country_subdivision_code`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (subdivision_code) REFERENCES country_subdivision(subdivision_code) ON UPDATE CASCADE ON DELETE CASCADE`
-
-2. `country_subdivision_l10n.l10n_lang_code` `lang_code_alpha2`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (l10n_lang_code) REFERENCES lang(lang_code) ON UPDATE RESTRICT ON DELETE RESTRICT`
-
-3. `country_subdivision_l10n.l10n_columns_belong_to_extension_name` `name`
-
-4. `country_subdivision_l10n.l10n_columns_belong_to_extension_version` `text`
-
-5. `country_subdivision_l10n.name` `text`
-
-   - `NOT NULL`
-
-#### Table: `currency`
-
-The `currency` table contains the currencies known to `pg_xenophile`.
-
-The `currency` table has 5 attributes:
-
-1. `currency.currency_code` `currency_code`
-
-   `currency_code` is a 3-letter ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `PRIMARY KEY (currency_code)`
-
-2. `currency.currency_code_num` `text`
-
-   `currency_code` is the numeric 3-digit ISO 4217 currency code.
-
-   - `NOT NULL`
-   - `CHECK (currency_code_num ~ '^[0-9]{3}$'::text)`
-   - `UNIQUE (currency_code_num)`
-
-3. `currency.currency_symbol` `text`
-
-   - `NOT NULL`
-   - `CHECK (length(currency_symbol) = 1)`
-
-4. `currency.decimal_digits` `integer`
-
-   - `NOT NULL`
-   - `DEFAULT 2`
-
-5. `currency.currency_belongs_to_pg_xenophile` `boolean`
-
-   Does this currency belong to the `pg_xenophile` extension or not.
-
-   If `NOT currency_belongs_to_pg_xenophile`, it is considered a custom currency
-   inserted by the extension user rather than the extension developer.  Instead
-   (or in addition) of adding such custom rows, please feel free to submit patches
-   with all the currencies that you wish for `pg_xenophile` to embrace.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country`
-
-The ISO 3166-1 alpha-2, alpha3 and numeric country codes, as well as some auxillary information.
-
-The `country` table has 6 attributes:
-
-1. `country.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-
-2. `country.country_code_alpha3` `text`
-
-   - `CHECK (country_code_alpha3 ~ '^[A-Z]{3}$'::text)`
-   - `UNIQUE (country_code_alpha3)`
-
-3. `country.country_code_num` `text`
-
-   - `NOT NULL`
-   - `CHECK (country_code_num ~ '^[0-9]{3}$'::text)`
-
-4. `country.calling_code` `integer`
-
-   - `NOT NULL`
-
-5. `country.currency_code` `text`
-
-   - `NOT NULL`
-   - `DEFAULT 'EUR'::text`
-   - `FOREIGN KEY (currency_code) REFERENCES currency(currency_code) ON UPDATE CASCADE ON DELETE RESTRICT`
-
-6. `country.country_belongs_to_pg_xenophile` `boolean`
-
-   `pg_dump` will ignore rows for which this is `true`.
-
-   Make sure that this column is `false` when you add your own country.  When your
-   country is an official country according to the ISO standard, please make sure
-   that it will be included upstream in `pg_xenophile`, so that all users of the
-   extension can profit from up-to-date information.
-
-   Please note, that you will run into problems with dump/restore when you add
-   records to this table from within your own dependent extension set up scripts.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_postal_code_pattern`
-
-The `country_postal_code_pattern` table has 8 attributes:
-
-1. `country_postal_code_pattern.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (country_code)`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-2. `country_postal_code_pattern.valid_postal_code_regexp` `text`
-
-   - `NOT NULL`
-
-3. `country_postal_code_pattern.clean_postal_code_regexp` `text`
-
-4. `country_postal_code_pattern.clean_postal_code_replace` `text`
-
-5. `country_postal_code_pattern.postal_code_example` `text`
-
-   - `NOT NULL`
-
-6. `country_postal_code_pattern.postal_code_pattern_checked_on` `date`
-
-7. `country_postal_code_pattern.postal_code_pattern_information_source` `text`
-
-8. `country_postal_code_pattern.postal_code_pattern_belongs_to_pg_xenophile` `boolean`
-
-   Whether or not this pattern was shipped with the `pg_xenophile` extension.
-
-   Make sure that, for your custom additions to this table, this column is
-   `false`.  Even better, though: contribute new or updated postal code patterns
-   upstream, to `pg_xenophile`, so that everybody may profit from your knowledge.
-
-   Please note, that you will run into problems with dump/restore when you add
-   records to this table from within your own dependent extension set up scripts.
-
-   - `NOT NULL`
-   - `DEFAULT false`
-
-#### Table: `country_subdivision`
-
-- *subdivision_code* [ISO 3166-2](https://www.iso.org/glossary-for-iso-3166.html) country subdivision code
-- *country_code* [ISO 3166-1](https://www.iso.org/glossary-for-iso-3166.html) country code
-- *subdivision_postal_abbreviation_code* the second part of country subdivision code
-
-The `country_subdivision` table has 4 attributes:
-
-1. `country_subdivision.subdivision_code` `country_subdivision_code`
-
-   - `NOT NULL`
-   - `PRIMARY KEY (subdivision_code)`
-
-2. `country_subdivision.country_code` `country_code_alpha2`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (country_code) REFERENCES country(country_code)`
-
-3. `country_subdivision.subdivision_postal_abbreviation_code` `country_subdivision_postal_abbreviation_code`
-
-   - `NOT NULL`
-
-4. `country_subdivision.subdivision_type_handle` `text`
-
-   - `NOT NULL`
-   - `FOREIGN KEY (subdivision_type_handle) REFERENCES country_subdivision_type(subdivision_type_handle)`
 
 ### Views
 

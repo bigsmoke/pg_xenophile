@@ -3,6 +3,9 @@
 
 begin;
 
+create schema if not exists public;
+create extension if not exists hstore;
+
 create extension pg_xenophile
     cascade;
 
