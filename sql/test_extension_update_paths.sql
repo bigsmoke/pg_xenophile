@@ -27,7 +27,7 @@ select
 select
     :'extension_name' as extension_name
     ,nullif(
-        string_to_array(:'extension_entry_versions', ' ')
+        (select array_agg(v order by v) from unnest(string_to_array(:'extension_entry_versions', ' ')) as v)
         ,array[]::text[]
     ) as extension_entry_versions
 into temporary
